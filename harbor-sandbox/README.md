@@ -23,7 +23,7 @@ harbor-sandbox/
 │   ├── check_prereqs.sh           # phase 0
 │   ├── run_oracle.sh              # phase 3 : solution de référence → resolved = 1
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
-│   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, concurrence 1
+│   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, 3 en parallèle
 │   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv + résumé
 │   ├── plot_metrics.py            # phase 6 : docs/metrics.csv → docs/comparison.html (graphiques par modèle)
 │   ├── view.sh                    # phase 6 : interface web de navigation dans jobs/
@@ -69,6 +69,7 @@ scripts/run_nop.sh           # attendu : resolved = 0, p2p = 1 sur chaque tâche
 # 5. Claude Code (consomme le quota de l'abonnement)
 scripts/run_claude.sh                   # évalue tous les modèles de MODELS (en tête du script)
 CLAUDE_MODELS="claude-sonnet-5-5" scripts/run_claude.sh   # ou un sous-ensemble ponctuel
+N_CONCURRENT=1 scripts/run_claude.sh          # essais en parallèle (défaut 3, compté en essais et non en tâches)
 ```
 
 Les scripts `run_*.sh` visent par défaut tout le dossier `tasks/` (3 essais par tâche et par modèle pour Claude). Pour cibler :
