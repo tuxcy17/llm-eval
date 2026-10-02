@@ -18,7 +18,7 @@ harbor-sandbox/
 │   ├── check_prereqs.sh           # phase 0
 │   ├── run_oracle.sh              # phase 3 : solution de référence → resolved = 1
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
-│   ├── run_claude.sh              # phase 5 : Claude Code, 3 essais, concurrence 1
+│   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, concurrence 1
 │   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv + résumé
 │   └── build_ca_base_image.sh     # contournement optionnel pour proxy TLS (voir plus bas)
 └── docs/
@@ -60,7 +60,8 @@ scripts/run_oracle.sh        # attendu : resolved = 1
 scripts/run_nop.sh           # attendu : resolved = 0, p2p = 1
 
 # 5. Claude Code (consomme le quota de l'abonnement)
-scripts/run_claude.sh <modèle>          # ex. claude-sonnet-5-5
+scripts/run_claude.sh                   # évalue tous les modèles de MODELS (en tête du script)
+CLAUDE_MODELS="claude-sonnet-5-5" scripts/run_claude.sh   # ou un sous-ensemble ponctuel
 
 # 6. Métriques
 python3 scripts/extract_metrics.py      # → docs/metrics.csv
