@@ -25,6 +25,7 @@ harbor-sandbox/
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
 │   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, concurrence 1
 │   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv + résumé
+│   ├── plot_metrics.py            # phase 6 : docs/metrics.csv → docs/comparison.html (graphiques par modèle)
 │   ├── view.sh                    # phase 6 : interface web de navigation dans jobs/
 │   └── build_ca_base_image.sh     # contournement optionnel pour proxy TLS (voir plus bas)
 └── docs/
@@ -83,6 +84,7 @@ Ajouter une tâche = créer un dossier dans `tasks/` avec les 4 éléments ci-de
 
 # 6. Métriques
 python3 scripts/extract_metrics.py      # → docs/metrics.csv
+python3 scripts/plot_metrics.py         # → docs/comparison.html (ouvrir dans un navigateur)
 scripts/view.sh                         # navigateur de trajectoires (http://127.0.0.1:8080)
 ```
 
