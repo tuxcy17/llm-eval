@@ -1,4 +1,4 @@
-# Bac à sable Harbor : fix-bulk-discount
+# Bac à sable Harbor
 
 Premier benchmark local d'un agent de codage avec [Harbor](https://docs.harborframework.com) (testé avec **Harbor 0.23.0**).
 Une mini-codebase Python contient un bug connu. On en fait une tâche Harbor « issue à résoudre », dans l'esprit de SWE-bench, puis on la fait résoudre par Claude Code.
@@ -8,7 +8,12 @@ Une mini-codebase Python contient un bug connu. On en fait une tâche Harbor « 
 ```
 harbor-sandbox/
 ├── project/                       # codebase de référence (état CORRIGÉ)
-├── tasks/fix-bulk-discount/       # tâche Harbor
+├── tasks/                         # une tâche Harbor par dossier
+│   ├── fix-bulk-discount/         # bugfix : seuil de remise volume (> au lieu de >=)
+│   ├── fix-pagination/            # bugfix : dernière page partielle perdue (division entière)
+│   ├── fix-slugify-accents/       # bugfix : accents traités comme séparateurs
+│   └── add-coupon-code/           # feature : Cart.apply_coupon (difficulté medium)
+│   Chaque tâche contient :
 │   ├── instruction.md             # l'issue, telle qu'un utilisateur l'écrirait
 │   ├── task.toml                  # timeouts et ressources
 │   ├── environment/               # image Docker : /app en état BUGGÉ, 1 seul commit git
@@ -55,12 +60,24 @@ scripts/check_prereqs.sh
 # 1. Codebase : tests locaux hors Docker
 (cd project && uvx --python 3.12 pytest -q)
 
-# 3-4. Valider la tâche avec les agents de contrôle (aucun quota consommé)
-scripts/run_oracle.sh        # attendu : resolved = 1
-scripts/run_nop.sh           # attendu : resolved = 0, p2p = 1
+# 3-4. Valider les tâches avec les agents de contrôle (aucun quota consommé)
+scripts/run_oracle.sh        # attendu : resolved = 1 sur chaque tâche
+scripts/run_nop.sh           # attendu : resolved = 0, p2p = 1 sur chaque tâche
 
 # 5. Claude Code (consomme le quota de l'abonnement)
-scripts/run_claude.sh <modèle>          # ex. claude-sonnet-5-5
+scripts/run_claude.sh <modèle>          # ex. claude-sonnet-5-5, toutes les tâches de tasks/
+```
+
+Les scripts `run_*.sh` visent par défaut tout le dossier `tasks/` (3 essais par tâche pour Claude). Pour cibler :
+
+```bash
+TASK_PATH=tasks/add-coupon-code scripts/run_claude.sh <modèle>   # une seule tâche
+scripts/run_claude.sh <modèle> -i 'fix-*'                        # filtre glob Harbor
+```
+
+Ajouter une tâche = créer un dossier dans `tasks/` avec les 4 éléments ci-dessous, puis valider avec oracle et nop avant tout run d'agent.
+
+```bash
 
 # 6. Métriques
 python3 scripts/extract_metrics.py      # → docs/metrics.csv

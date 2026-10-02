@@ -1,0 +1,13 @@
+[project]
+name = "paging"
+version = "0.1.0"
+description = "Minimal pagination helpers used as a Harbor sandbox codebase"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
