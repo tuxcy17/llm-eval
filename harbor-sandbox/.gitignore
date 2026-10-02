@@ -1,0 +1,11 @@
+# Harbor job outputs (may contain full agent transcripts)
+jobs/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Secrets
+.env

@@ -1,0 +1,13 @@
+[project]
+name = "pricing"
+version = "0.1.0"
+description = "Minimal shopping cart used as a Harbor sandbox codebase"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

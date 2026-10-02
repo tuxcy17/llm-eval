@@ -1,0 +1,3 @@
+job,trial,agent,model,status,resolved,f2p,p2p,n_steps,total_prompt_tokens,total_completion_tokens,total_cached_tokens,total_cost_usd,duration_sec,env_setup_sec,agent_setup_sec,agent_exec_sec,verifier_sec,exception_type,exception_message
+nop-20261002-191224,fix-bulk-discount__NLfJ9GB,nop,,ok,0,0,1,,,,,,13.89,2.1,0.0,0.0,0.67,,
+oracle-20261002-191201,fix-bulk-discount__VXmeQVe,oracle,,ok,1,1,1,,,,,,13.99,1.83,0.0,0.24,0.72,,
