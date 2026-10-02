@@ -20,6 +20,7 @@ harbor-sandbox/
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
 │   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, concurrence 1
 │   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv + résumé
+│   ├── view.sh                    # phase 6 : interface web de navigation dans jobs/
 │   └── build_ca_base_image.sh     # contournement optionnel pour proxy TLS (voir plus bas)
 └── docs/
     ├── harbor-run-help.txt        # sortie de `harbor run --help` (référence des options)
@@ -65,7 +66,7 @@ CLAUDE_MODELS="claude-sonnet-5-5" scripts/run_claude.sh   # ou un sous-ensemble 
 
 # 6. Métriques
 python3 scripts/extract_metrics.py      # → docs/metrics.csv
-harbor view jobs                        # navigateur de trajectoires
+scripts/view.sh                         # navigateur de trajectoires (http://127.0.0.1:8080)
 ```
 
 Les résultats bruts vont dans `jobs/<job>/<task>__<id>/`. Ce dossier est ignoré par git, car il contient les transcriptions complètes de l'agent.
