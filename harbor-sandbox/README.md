@@ -23,8 +23,9 @@ harbor-sandbox/
 │   ├── check_prereqs.sh           # phase 0
 │   ├── run_oracle.sh              # phase 3 : solution de référence → resolved = 1
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
-│   ├── run_claude.sh              # phase 5 : Claude Code, 3 essais, concurrence 1
+│   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, concurrence 1
 │   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv + résumé
+│   ├── view.sh                    # phase 6 : interface web de navigation dans jobs/
 │   └── build_ca_base_image.sh     # contournement optionnel pour proxy TLS (voir plus bas)
 └── docs/
     ├── harbor-run-help.txt        # sortie de `harbor run --help` (référence des options)
@@ -65,14 +66,15 @@ scripts/run_oracle.sh        # attendu : resolved = 1 sur chaque tâche
 scripts/run_nop.sh           # attendu : resolved = 0, p2p = 1 sur chaque tâche
 
 # 5. Claude Code (consomme le quota de l'abonnement)
-scripts/run_claude.sh <modèle>          # ex. claude-sonnet-5-5, toutes les tâches de tasks/
+scripts/run_claude.sh                   # évalue tous les modèles de MODELS (en tête du script)
+CLAUDE_MODELS="claude-sonnet-5-5" scripts/run_claude.sh   # ou un sous-ensemble ponctuel
 ```
 
-Les scripts `run_*.sh` visent par défaut tout le dossier `tasks/` (3 essais par tâche pour Claude). Pour cibler :
+Les scripts `run_*.sh` visent par défaut tout le dossier `tasks/` (3 essais par tâche et par modèle pour Claude). Pour cibler :
 
 ```bash
-TASK_PATH=tasks/add-coupon-code scripts/run_claude.sh <modèle>   # une seule tâche
-scripts/run_claude.sh <modèle> -i 'fix-*'                        # filtre glob Harbor
+TASK_PATH=tasks/add-coupon-code scripts/run_claude.sh   # une seule tâche
+scripts/run_claude.sh -i 'fix-*'                        # filtre glob Harbor
 ```
 
 Ajouter une tâche = créer un dossier dans `tasks/` avec les 4 éléments ci-dessous, puis valider avec oracle et nop avant tout run d'agent.
@@ -81,7 +83,7 @@ Ajouter une tâche = créer un dossier dans `tasks/` avec les 4 éléments ci-de
 
 # 6. Métriques
 python3 scripts/extract_metrics.py      # → docs/metrics.csv
-harbor view jobs                        # navigateur de trajectoires
+scripts/view.sh                         # navigateur de trajectoires (http://127.0.0.1:8080)
 ```
 
 Les résultats bruts vont dans `jobs/<job>/<task>__<id>/`. Ce dossier est ignoré par git, car il contient les transcriptions complètes de l'agent.

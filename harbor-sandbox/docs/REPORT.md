@@ -36,7 +36,7 @@ Conséquence : la doc en ligne de Harbor était inaccessible. Le schéma de `tas
 | 2 | `docker build -t …:check tasks/fix-bulk-discount/environment` | OK. Dans le conteneur : 0 fichier `test_bulk_discount.py`, `git rev-list --count HEAD` = 1 (« initial import »), 8 tests publics passent |
 | 3 | `scripts/run_oracle.sh` (`harbor run --path tasks --agent oracle --env docker --jobs-dir jobs --n-concurrent 1`) | `resolved = 1` |
 | 4 | `scripts/run_nop.sh` (idem avec `--agent nop`) | `resolved = 0`, `f2p = 0`, `p2p = 1` |
-| 5 ⏳ | `scripts/run_claude.sh <modèle>` (`--agent claude-code --model <modèle> --n-attempts 3 --n-concurrent 1`, avec `CLAUDE_FORCE_OAUTH=1`) | en attente |
+| 5 ⏳ | `scripts/run_claude.sh` (un job par modèle de `MODELS` : `--agent claude-code --model <modèle> --n-attempts 3 --n-concurrent 1`, avec `CLAUDE_FORCE_OAUTH=1`) | en attente |
 | 6 | `python3 scripts/extract_metrics.py` | `docs/metrics.csv` (oracle et nop pour l'instant) |
 
 Les agents de contrôle s'appellent bien `oracle` et `nop` dans Harbor 0.23.0 (liste de `--agent` dans `harbor run --help`).
@@ -112,7 +112,7 @@ Les champs ATIF utilisés sont `steps[]` et `final_metrics.{total_prompt_tokens,
 
 ## Prochaines étapes
 
-1. ⏳ Lancer la phase 5 sur le poste de l'utilisateur : `scripts/check_prereqs.sh && scripts/run_claude.sh <modèle>`.
+1. ⏳ Lancer la phase 5 sur le poste de l'utilisateur : `scripts/check_prereqs.sh && scripts/run_claude.sh` (modèles définis dans `MODELS`, ou `CLAUDE_MODELS="..."`).
 2. ⏳ `python3 scripts/extract_metrics.py` (toutes tâches), puis compléter les tableaux « Résultats » et « Temps observés » (installation de l'agent).
 3. ✅ Tâches supplémentaires ajoutées (`fix-pagination`, `fix-slugify-accents`, `add-coupon-code`). Reste à ajouter une tâche plus ambiguë (bug multi-fichiers, ou issue sans test public proche) si les 4 tâches actuelles sont toutes résolues par l'agent.
 4. Essayer `--ak reasoning_effort=…` et `--ak max_turns=…` pour comparer coût et taux de résolution.
