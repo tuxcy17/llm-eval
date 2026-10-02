@@ -1,12 +1,14 @@
 #!/bin/bash
 # Phase 5: run Claude Code on every task under tasks/ for each model in MODELS,
-# one after the other: 3 attempts per task and model, concurrency 1.
+# one after the other: 3 attempts per task and model.
+# Concurrency: N_CONCURRENT trials at once (default 3), counted over trials, not tasks.
 # TASK_PATH=tasks/<name> targets one task; harbor filters such as -i "fix-*" are passed through.
 # Auth: subscription token read from CLAUDE_CODE_OAUTH_TOKEN at runtime only.
 #
 # Usage: scripts/run_claude.sh [extra harbor run options...]
 #   Models to evaluate: edit MODELS below, or override for one invocation:
 #   CLAUDE_MODELS="claude-haiku-4-5-20251001" scripts/run_claude.sh
+#   Parallel trials: N_CONCURRENT=1 scripts/run_claude.sh (default 3)
 set -euo pipefail
 
 MODELS=(
@@ -54,7 +56,7 @@ run_model() {
         --jobs-dir jobs \
         --job-name "${job_name}" \
         --n-attempts 3 \
-        --n-concurrent 1 \
+        --n-concurrent "${N_CONCURRENT:-3}" \
         "$@"
 
     # Safety net: the token must never be written to the job outputs.
