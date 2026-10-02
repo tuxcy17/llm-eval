@@ -9,6 +9,13 @@ Layout observed with Harbor 0.23.0 (see docs/REPORT.md):
     jobs/<job_name>/<trial_name>/agent/trajectory.json   (ATIF, LLM agents only)
 
 Every field is optional: missing files or keys yield empty cells.
+
+The CSV is a long-term history: by default new trials are merged into the
+existing file (key: job + trial) and rows whose job directory no longer exists
+are kept. Use --replace to rebuild the file from jobs/ only.
+
+`task_checksum` identifies the exact task content (instruction, tests,
+environment): only trials with the same checksum are comparable.
 """
 
 import argparse
@@ -24,8 +31,13 @@ from typing import Any
 COLUMNS = [
     "job",
     "trial",
+    "task",
+    "started_at",
     "agent",
     "model",
+    "agent_version",
+    "harbor_version",
+    "task_checksum",
     "status",
     "resolved",
     "f2p",
@@ -90,10 +102,17 @@ def is_trial_result(data: Any) -> bool:
     return isinstance(data, dict) and "trial_name" in data
 
 
-def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
+def extract_trial(
+    job_name: str, trial_dir: Path, result: dict, harbor_version: str | None = None
+) -> dict:
     row: dict[str, Any] = {key: None for key in COLUMNS}
     row["job"] = job_name
     row["trial"] = result.get("trial_name", trial_dir.name)
+    row["task"] = result.get("task_name") or row["trial"].rsplit("__", 1)[0]
+    row["task_checksum"] = result.get("task_checksum")
+    row["started_at"] = result.get("started_at")
+    row["harbor_version"] = harbor_version
+    row["agent_version"] = get(result, "agent_info", "version")
     row["agent"] = get(result, "agent_info", "name") or get(
         result, "config", "agent", "name"
     )
@@ -146,11 +165,48 @@ def collect_rows(jobs_dir: Path, job_pattern: str) -> list[dict]:
     for job_dir in sorted(p for p in jobs_dir.iterdir() if p.is_dir()):
         if not fnmatch.fnmatch(job_dir.name, job_pattern):
             continue
+        harbor_version = get(load_json(job_dir / "lock.json"), "harbor", "version")
         for trial_dir in sorted(p for p in job_dir.iterdir() if p.is_dir()):
             result = load_json(trial_dir / "result.json")
             if is_trial_result(result):
-                rows.append(extract_trial(job_dir.name, trial_dir, result))
+                rows.append(
+                    extract_trial(job_dir.name, trial_dir, result, harbor_version)
+                )
     return rows
+
+
+def load_history(path: Path) -> list[dict]:
+    """Rows of an existing CSV, tolerant of older column sets."""
+    if not path.is_file():
+        return []
+    with path.open(newline="") as handle:
+        rows = [{key: row.get(key) or None for key in COLUMNS} for row in csv.DictReader(handle)]
+    for row in rows:
+        if not row["task"] and row["trial"]:
+            row["task"] = row["trial"].rsplit("__", 1)[0]
+    return rows
+
+
+def merge_rows(history: list[dict], fresh: list[dict]) -> list[dict]:
+    """History first, fresh rows replace same (job, trial) or are appended."""
+    fresh_by_key = {(r["job"], r["trial"]): r for r in fresh}
+    merged = [fresh_by_key.pop((r["job"], r["trial"]), r) for r in history]
+    merged.extend(fresh_by_key.values())
+    return merged
+
+
+def warn_mixed_versions(rows: list[dict]) -> None:
+    versions: dict[str, set] = {}
+    for row in rows:
+        if row["task_checksum"]:
+            versions.setdefault(row["task"], set()).add(row["task_checksum"])
+    for task, checksums in sorted(versions.items()):
+        if len(checksums) > 1:
+            print(
+                f"WARNING: task '{task}' has {len(checksums)} versions in the history "
+                "(different task_checksum): do not compare trials across versions.",
+                file=sys.stderr,
+            )
 
 
 def mean(values: list) -> float | None:
@@ -197,6 +253,11 @@ def main() -> int:
         "--output", type=Path, default=repo_root / "docs" / "metrics.csv"
     )
     parser.add_argument("--job", default="*", help="glob on job names (default: all)")
+    parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="rebuild the CSV from jobs/ only instead of merging into the history",
+    )
     args = parser.parse_args()
 
     if not args.jobs_dir.is_dir():
@@ -208,6 +269,8 @@ def main() -> int:
         print(f"No trial found under {args.jobs_dir}", file=sys.stderr)
         return 1
 
+    if not args.replace:
+        rows = merge_rows(load_history(args.output), rows)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=COLUMNS)
@@ -216,6 +279,7 @@ def main() -> int:
 
     print(f"{len(rows)} trial(s) written to {args.output}\n")
     print_summary(rows)
+    warn_mixed_versions(rows)
     return 0
 
 

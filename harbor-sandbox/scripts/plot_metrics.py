@@ -6,10 +6,15 @@ one bar per model, plus a table view. Standard library only; the output has
 no external dependency and follows the viewer's light/dark theme.
 
 Runs without a model (oracle, nop) and infra_error trials are ignored.
+
+Only comparable trials are plotted: for each task, the trials of its latest
+version (task_checksum). Older versions and rows without a checksum are
+dropped unless --all-versions is given. --task restricts the tasks.
 """
 
 import argparse
 import csv
+import fnmatch
 import html
 import re
 import statistics
@@ -81,9 +86,33 @@ def mean(values: list) -> float | None:
     return statistics.mean(values) if values else None
 
 
-def aggregate(csv_path: Path) -> list[dict]:
-    with csv_path.open(newline="") as handle:
-        rows = [r for r in csv.DictReader(handle) if r.get("model")]
+def comparable_rows(rows: list[dict], task_glob: str, all_versions: bool) -> list[dict]:
+    """Keep the tasks matching the glob and, by default, their latest version only."""
+    rows = [r for r in rows if fnmatch.fnmatch(r.get("task") or "", task_glob)]
+    if all_versions:
+        return rows
+    latest: dict[str, tuple[str, str]] = {}
+    for r in rows:
+        if r.get("task_checksum"):
+            stamp = (r.get("started_at") or "", r["task_checksum"])
+            latest[r["task"]] = max(latest.get(r["task"], stamp), stamp)
+    return [
+        r for r in rows
+        if r.get("task_checksum") and r["task_checksum"] == latest[r["task"]][1]
+    ]
+
+
+def warn_uneven_tasks(rows: list[dict]) -> None:
+    by_model: dict[str, set] = {}
+    for r in rows:
+        by_model.setdefault(r["model"], set()).add(r["task"])
+    if len({frozenset(t) for t in by_model.values()}) > 1:
+        detail = "; ".join(f"{m}: {len(t)} task(s)" for m, t in sorted(by_model.items()))
+        print(f"WARNING: models were not run on the same tasks ({detail}); "
+              "averages are not directly comparable. Use --task to align.", file=sys.stderr)
+
+
+def aggregate(rows: list[dict]) -> list[dict]:
     models = sorted({r["model"] for r in rows}, key=order_key)
     stats = []
     for slot, model in enumerate(models):
@@ -154,7 +183,7 @@ def table(stats: list[dict]) -> str:
     return "".join(out)
 
 
-def render(stats: list[dict]) -> str:
+def render(stats: list[dict], tasks: list[str]) -> str:
     legend = "".join(
         f'<span><i style="background:var(--s{s["slot"]})"></i>{html.escape(s["model"])}</span>'
         for s in stats)
@@ -162,10 +191,10 @@ def render(stats: list[dict]) -> str:
     return f"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Comparaison des modèles - fix-bulk-discount</title><style>{CSS}</style></head>
+<title>Comparaison des modèles</title><style>{CSS}</style></head>
 <body><main>
 <h1>Comparaison des modèles</h1>
-<p class="sub">Tâche fix-bulk-discount. Moyennes par modèle, essais en erreur d'infrastructure exclus.</p>
+<p class="sub">{html.escape(', '.join(tasks))}. Moyennes par modèle sur la dernière version de chaque tâche, essais en erreur d'infrastructure exclus.</p>
 <div class="legend">{legend}</div>
 <div class="grid">{charts}</div>
 <h2>Tableau</h2>{table(stats)}
@@ -178,17 +207,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--input", type=Path, default=repo_root / "docs" / "metrics.csv")
     parser.add_argument("--output", type=Path, default=repo_root / "docs" / "comparison.html")
+    parser.add_argument("--task", default="*", help="glob on task names (default: all)")
+    parser.add_argument("--all-versions", action="store_true",
+                        help="also plot older task versions and rows without task_checksum")
     args = parser.parse_args()
 
     if not args.input.is_file():
         print(f"{args.input} not found: run scripts/extract_metrics.py first.", file=sys.stderr)
         return 1
-    stats = aggregate(args.input)
+    with args.input.open(newline="") as handle:
+        rows = [r for r in csv.DictReader(handle) if r.get("model")]
+    rows = comparable_rows(rows, args.task, args.all_versions)
+    warn_uneven_tasks(rows)
+    stats = aggregate(rows)
     if not stats:
         print("No trial with a model in the CSV (oracle/nop runs are ignored): "
               "run scripts/run_claude.sh first.", file=sys.stderr)
         return 1
-    args.output.write_text(render(stats))
+    args.output.write_text(render(stats, sorted({r['task'] for r in rows})))
     print(f"{len(stats)} model(s) plotted to {args.output}")
     return 0
 

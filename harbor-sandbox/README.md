@@ -24,8 +24,8 @@ harbor-sandbox/
 │   ├── run_oracle.sh              # phase 3 : solution de référence → resolved = 1
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
 │   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, 3 en parallèle
-│   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv + résumé
-│   ├── plot_metrics.py            # phase 6 : docs/metrics.csv → docs/comparison.html (graphiques par modèle)
+│   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv (historique fusionné) + résumé
+│   ├── plot_metrics.py            # phase 6 : docs/metrics.csv → docs/comparison.html (graphiques par modèle, versions comparables)
 │   ├── view.sh                    # phase 6 : interface web de navigation dans jobs/
 │   └── build_ca_base_image.sh     # contournement optionnel pour proxy TLS (voir plus bas)
 └── docs/
@@ -84,10 +84,19 @@ Ajouter une tâche = créer un dossier dans `tasks/` avec les 4 éléments ci-de
 ```bash
 
 # 6. Métriques
-python3 scripts/extract_metrics.py      # → docs/metrics.csv
+python3 scripts/extract_metrics.py      # → docs/metrics.csv (fusionné dans l'historique)
 python3 scripts/plot_metrics.py         # → docs/comparison.html (ouvrir dans un navigateur)
 scripts/view.sh                         # navigateur de trajectoires (http://127.0.0.1:8080)
 ```
+
+### Historique des runs et comparabilité
+
+- **`docs/metrics.csv` est l'historique, versionné dans git.** `extract_metrics.py` y fusionne les nouveaux essais (clé `job` + `trial`, sans doublon) et conserve les lignes dont le dossier `jobs/` a été supprimé. `--replace` reconstruit le fichier depuis `jobs/` uniquement.
+- **Colonnes de traçabilité** : `task`, `task_checksum` (empreinte du contenu de la tâche : instruction, tests, environnement), `started_at`, `harbor_version`, `agent_version`. Les anciennes lignes n'ont pas ces champs, sauf `task` reconstruit depuis le nom d'essai.
+- **Deux essais ne sont comparables que s'ils ont le même `task_checksum`.** Modifier une tâche change son empreinte. `extract_metrics.py` avertit si une tâche a plusieurs versions dans l'historique, et `plot_metrics.py` ne trace par défaut que la dernière version de chaque tâche (`--all-versions` pour tout, `--task 'glob'` pour restreindre). Il avertit aussi si les modèles n'ont pas été lancés sur les mêmes tâches.
+- **Bruit** : avec 3 essais par tâche et quelques tâches, un écart d'une ou deux résolutions n'est pas significatif. Les moyennes par modèle mélangent les tâches.
+- **Alias de modèles** : la colonne `model` contient le nom demandé à Harbor. Un alias peut pointer plus tard vers une autre version du modèle ; le CSV ne le détecte pas. Préférer des identifiants datés quand ils existent.
+- **Les transcriptions brutes** (`jobs/`) restent hors git. Pour pouvoir rouvrir une trajectoire plus tard, archivez le job : `tar czf archive/<job>.tar.gz jobs/<job>`.
 
 Les résultats bruts vont dans `jobs/<job>/<task>__<id>/`. Ce dossier est ignoré par git, car il contient les transcriptions complètes de l'agent.
 

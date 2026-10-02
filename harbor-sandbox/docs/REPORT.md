@@ -37,7 +37,7 @@ Conséquence : la doc en ligne de Harbor était inaccessible. Le schéma de `tas
 | 3 | `scripts/run_oracle.sh` (`harbor run --path tasks --agent oracle --env docker --jobs-dir jobs --n-concurrent 1`) | `resolved = 1` |
 | 4 | `scripts/run_nop.sh` (idem avec `--agent nop`) | `resolved = 0`, `f2p = 0`, `p2p = 1` |
 | 5 ⏳ | `scripts/run_claude.sh` (un job par modèle de `MODELS` : `--agent claude-code --model <modèle> --n-attempts 3 --n-concurrent ${N_CONCURRENT:-3}`, avec `CLAUDE_FORCE_OAUTH=1`) | en attente |
-| 6 | `python3 scripts/extract_metrics.py` | `docs/metrics.csv` (oracle et nop pour l'instant) |
+| 6 | `python3 scripts/extract_metrics.py` | `docs/metrics.csv` (historique fusionné ; oracle et nop pour l'instant) |
 
 Les agents de contrôle s'appellent bien `oracle` et `nop` dans Harbor 0.23.0 (liste de `--agent` dans `harbor run --help`).
 
