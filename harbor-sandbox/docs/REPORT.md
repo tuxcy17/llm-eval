@@ -1,7 +1,18 @@
-# Rapport : bac à sable Harbor, tâche `fix-bulk-discount`
+# Rapport : bac à sable Harbor, 4 tâches
 
-> **Statut : phases 0 à 4 terminées. Phases 5 à 7 en attente du feu vert de l'utilisateur.**
+> **Statut : phases 0 à 4 terminées sur les 4 tâches (`fix-bulk-discount`, `fix-pagination`, `fix-slugify-accents`, `add-coupon-code`). Phases 5 à 7 en attente du feu vert de l'utilisateur.**
 > Le run Claude Code consomme le quota de l'abonnement. Les sections marquées ⏳ seront complétées après ce run.
+
+## Tâches
+
+| Tâche | Catégorie | Difficulté | Description |
+|---|---|---|---|
+| `fix-bulk-discount` | bugfix | easy | `>` au lieu de `>=` sur le seuil de remise volume |
+| `fix-pagination` | bugfix | easy | `total_pages` arrondit à l'inférieur : la dernière page partielle est inaccessible |
+| `fix-slugify-accents` | bugfix | easy | les accents sont traités comme des séparateurs (`caf-cr-me`) |
+| `add-coupon-code` | feature | medium | implémenter `Cart.apply_coupon` (2 codes, ordre d'application, arrondi final) |
+
+Toutes suivent le même format (image Python 3.12, `/app` en un seul commit git, tests publics P2P dans l'image, tests cachés F2P dans `tests/`). Les phases 1 à 4 ci-dessous ont été détaillées pour `fix-bulk-discount` ; les trois autres ont été validées de la même façon (voir « Validation multi-tâches »).
 
 ## Environnement d'exécution
 
@@ -23,14 +34,27 @@ Conséquence : la doc en ligne de Harbor était inaccessible. Le schéma de `tas
 | 1 | `cd tasks/fix-bulk-discount/environment/app && uvx --python 3.12 pytest -q tests/test_cart.py` | 8 passed (tests publics OK sur la version buggée) |
 | 1 | idem avec `test_bulk_discount.py` | **2 failed**, 1 passed (`quantity_ten`, `mixed_cart` KO ; `quantity_nine` OK) |
 | 2 | `docker build -t …:check tasks/fix-bulk-discount/environment` | OK. Dans le conteneur : 0 fichier `test_bulk_discount.py`, `git rev-list --count HEAD` = 1 (« initial import »), 8 tests publics passent |
-| 3 | `scripts/run_oracle.sh` (`harbor run --path tasks/fix-bulk-discount --agent oracle --env docker --jobs-dir jobs --n-concurrent 1`) | `resolved = 1` |
+| 3 | `scripts/run_oracle.sh` (`harbor run --path tasks --agent oracle --env docker --jobs-dir jobs --n-concurrent 1`) | `resolved = 1` |
 | 4 | `scripts/run_nop.sh` (idem avec `--agent nop`) | `resolved = 0`, `f2p = 0`, `p2p = 1` |
-| 5 ⏳ | `scripts/run_claude.sh <modèle>` (`--agent claude-code --model <modèle> --n-attempts 3 --n-concurrent 1`, avec `CLAUDE_FORCE_OAUTH=1`) | en attente |
+| 5 ⏳ | `scripts/run_claude.sh` (un job par modèle de `MODELS` : `--agent claude-code --model <modèle> --n-attempts 3 --n-concurrent 1`, avec `CLAUDE_FORCE_OAUTH=1`) | en attente |
 | 6 | `python3 scripts/extract_metrics.py` | `docs/metrics.csv` (oracle et nop pour l'instant) |
 
 Les agents de contrôle s'appellent bien `oracle` et `nop` dans Harbor 0.23.0 (liste de `--agent` dans `harbor run --help`).
 
+## Validation multi-tâches
+
+Les scripts `run_*.sh` visent tout le dossier `tasks/` (`--path tasks`, traité par Harbor comme un dataset ; `TASK_PATH` et `-i` permettent de filtrer). Avant Harbor, chaque nouvelle tâche a été vérifiée hors Docker : tests cachés en échec sur la version buggée, tout au vert une fois `solve.sh` appliqué. Puis, en local (Docker du poste de développement) :
+
+| Commande | Résultat sur les 4 tâches |
+|---|---|
+| `scripts/run_oracle.sh` | Resolved 1.000 (4/4), F2P 1.000, P2P 1.000, 0 exception, ~1 min au total |
+| `scripts/run_nop.sh` | Resolved 0.000, F2P 0.000, P2P 1.000, 0 exception |
+
+Les lignes correspondantes ont été ajoutées à `docs/metrics.csv` (jobs `oracle-20261002-235832` et `nop-20261002-235940`). Le run Claude Code reste à faire.
+
 ## Résultats
+
+Résultats de la première tâche (`fix-bulk-discount`, sandbox cloud) ; voir `docs/metrics.csv` pour le détail par tâche.
 
 | Agent | Modèle | Essais | resolved | f2p | p2p | Durée essai | Tokens (in/out) | Étapes |
 |---|---|---|---|---|---|---|---|---|
@@ -88,8 +112,8 @@ Les champs ATIF utilisés sont `steps[]` et `final_metrics.{total_prompt_tokens,
 
 ## Prochaines étapes
 
-1. ⏳ Lancer la phase 5 sur le poste de l'utilisateur : `scripts/check_prereqs.sh && scripts/run_claude.sh <modèle>`.
-2. ⏳ `python3 scripts/extract_metrics.py`, puis compléter les tableaux « Résultats » et « Temps observés » (installation de l'agent).
-3. Ajouter une 2e tâche plus ambiguë (bug multi-fichiers, ou issue sans test public proche) pour obtenir un signal discriminant.
+1. ⏳ Lancer la phase 5 sur le poste de l'utilisateur : `scripts/check_prereqs.sh && scripts/run_claude.sh` (modèles définis dans `MODELS`, ou `CLAUDE_MODELS="..."`).
+2. ⏳ `python3 scripts/extract_metrics.py` (toutes tâches), puis compléter les tableaux « Résultats » et « Temps observés » (installation de l'agent).
+3. ✅ Tâches supplémentaires ajoutées (`fix-pagination`, `fix-slugify-accents`, `add-coupon-code`). Reste à ajouter une tâche plus ambiguë (bug multi-fichiers, ou issue sans test public proche) si les 4 tâches actuelles sont toutes résolues par l'agent.
 4. Essayer `--ak reasoning_effort=…` et `--ak max_turns=…` pour comparer coût et taux de résolution.
 5. Prototyper la tâche Java/Maven avec dépendances pré-téléchargées et réseau restreint.

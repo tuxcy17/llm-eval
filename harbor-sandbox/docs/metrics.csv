@@ -1,3 +1,11 @@
 job,trial,agent,model,status,resolved,f2p,p2p,n_steps,total_prompt_tokens,total_completion_tokens,total_cached_tokens,total_cost_usd,duration_sec,env_setup_sec,agent_setup_sec,agent_exec_sec,verifier_sec,exception_type,exception_message
 nop-20261002-191224,fix-bulk-discount__NLfJ9GB,nop,,ok,0,0,1,,,,,,13.89,2.1,0.0,0.0,0.67,,
 oracle-20261002-191201,fix-bulk-discount__VXmeQVe,oracle,,ok,1,1,1,,,,,,13.99,1.83,0.0,0.24,0.72,,
+nop-20261002-235940,add-coupon-code__dUMAUcG,nop,,ok,0,0,1,,,,,,13.17,1.51,0.0,0.0,0.71,,
+nop-20261002-235940,fix-bulk-discount__h8ikoEx,nop,,ok,0,0,1,,,,,,13.46,1.89,0.0,0.0,0.59,,
+nop-20261002-235940,fix-pagination__cNSa8HB,nop,,ok,0,0,1,,,,,,12.59,1.24,0.0,0.0,0.56,,
+nop-20261002-235940,fix-slugify-accents__V4r49tk,nop,,ok,0,0,1,,,,,,12.99,1.57,0.0,0.0,0.55,,
+oracle-20261002-235832,add-coupon-code__K6LZhyk,oracle,,ok,1,1,1,,,,,,15.9,4.22,0.0,0.22,0.63,,
+oracle-20261002-235832,fix-bulk-discount__ULqESCj,oracle,,ok,1,1,1,,,,,,13.33,1.66,0.0,0.21,0.59,,
+oracle-20261002-235832,fix-pagination__SeQuQFz,oracle,,ok,1,1,1,,,,,,16.13,4.33,0.0,0.22,0.61,,
+oracle-20261002-235832,fix-slugify-accents__p7MXTnd,oracle,,ok,1,1,1,,,,,,15.8,4.23,0.0,0.21,0.55,,

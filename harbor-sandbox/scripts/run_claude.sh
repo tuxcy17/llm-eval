@@ -1,6 +1,7 @@
 #!/bin/bash
-# Phase 5: run Claude Code on the task for each model in MODELS, one after
-# the other: 3 attempts per model, concurrency 1.
+# Phase 5: run Claude Code on every task under tasks/ for each model in MODELS,
+# one after the other: 3 attempts per task and model, concurrency 1.
+# TASK_PATH=tasks/<name> targets one task; harbor filters such as -i "fix-*" are passed through.
 # Auth: subscription token read from CLAUDE_CODE_OAUTH_TOKEN at runtime only.
 #
 # Usage: scripts/run_claude.sh [extra harbor run options...]
@@ -46,7 +47,7 @@ run_model() {
     # default Anthropic endpoint (Harbor forwards it otherwise).
     env -u ANTHROPIC_BASE_URL CLAUDE_FORCE_OAUTH=1 \
         harbor run \
-        --path tasks/fix-bulk-discount \
+        --path "${TASK_PATH:-tasks}" \
         --agent claude-code \
         --model "${model}" \
         --env docker \
