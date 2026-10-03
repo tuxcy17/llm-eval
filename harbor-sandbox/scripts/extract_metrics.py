@@ -5,6 +5,9 @@ Layout observed with Harbor 0.23.0 (see docs/REPORT.md):
 
     jobs/<job_name>/result.json                  job-level summary
     jobs/<job_name>/<trial_name>/result.json     trial result (TrialResult)
+
+run_claude.sh creates one job per task (claude-code-<ts>-<task>); all matching
+jobs are aggregated, and the summary is grouped by (task, agent, model).
     jobs/<job_name>/<trial_name>/verifier/reward.json
     jobs/<job_name>/<trial_name>/agent/trajectory.json   (ATIF, LLM agents only)
 
@@ -23,9 +26,13 @@ from typing import Any
 
 COLUMNS = [
     "job",
+    "task",
+    "task_checksum",
     "trial",
     "agent",
     "model",
+    "max_turns",
+    "max_budget_usd",
     "status",
     "resolved",
     "f2p",
@@ -94,6 +101,11 @@ def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
     row: dict[str, Any] = {key: None for key in COLUMNS}
     row["job"] = job_name
     row["trial"] = result.get("trial_name", trial_dir.name)
+    row["task"] = result.get("task_name")
+    # Identifies the generated task version (changes when spec/revision changes).
+    row["task_checksum"] = (result.get("task_checksum") or "")[:12] or None
+    row["max_turns"] = get(result, "config", "agent", "kwargs", "max_turns")
+    row["max_budget_usd"] = get(result, "config", "agent", "kwargs", "max_budget_usd")
     row["agent"] = get(result, "agent_info", "name") or get(
         result, "config", "agent", "name"
     )
@@ -165,21 +177,24 @@ def fmt(value: float | None, digits: int = 1) -> str:
 def print_summary(rows: list[dict]) -> None:
     groups: dict[tuple, list[dict]] = {}
     for row in rows:
-        groups.setdefault((row["agent"], row["model"]), []).append(row)
+        groups.setdefault((row["task"], row["agent"], row["model"]), []).append(row)
 
     header = (
-        f"{'agent':<14}{'model':<28}{'trials':>7}{'infra':>7}{'resolved':>10}"
+        f"{'task':<22}{'agent':<12}{'model':<22}{'trials':>7}{'infra':>7}{'resolved':>10}"
         f"{'prompt_tok':>12}{'compl_tok':>11}{'steps':>7}{'dur_s':>8}"
     )
     print(header)
     print("-" * len(header))
-    for (agent, model), group in sorted(groups.items(), key=lambda kv: str(kv[0])):
+    for (task, agent, model), group in sorted(
+        groups.items(), key=lambda kv: str(kv[0])
+    ):
         scored = [r for r in group if r["status"] == "ok"]
         n_infra = len(group) - len(scored)
         resolved = mean([r["resolved"] for r in scored])
         rate = "-" if resolved is None else f"{resolved:.0%}"
         print(
-            f"{str(agent):<14}{str(model or '-'):<28}{len(group):>7}{n_infra:>7}"
+            f"{str(task or '-'):<22}{str(agent):<12}{str(model or '-'):<22}"
+            f"{len(group):>7}{n_infra:>7}"
             f"{rate:>10}"
             f"{fmt(mean([r['total_prompt_tokens'] for r in scored]), 0):>12}"
             f"{fmt(mean([r['total_completion_tokens'] for r in scored]), 0):>11}"
