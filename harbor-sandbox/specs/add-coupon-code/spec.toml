@@ -6,15 +6,14 @@ name = "add-coupon-code"
 instruction = "instruction.md"
 
 [source]
-repo = "../../.."
-revision = "8e6147f83c557367091bda601ecbaf2d7511be2e"
-subdir = "harbor-sandbox/tasks/add-coupon-code/environment/app"
+repo = "git@github.com:tuxcy17/fake-app.git"
+revision = "8dfba35f31b17fd0a28e394b2bdde8685bb33acf"
 
 [tests]
 patch = "tests.patch"
 command = "python -m pytest -rA -p no:cacheprovider"
 f2p = ["tests/test_coupons.py"]
-p2p = ["tests/test_cart.py"]
+p2p = ["tests/test_accents.py", "tests/test_bulk_discount.py", "tests/test_cart.py", "tests/test_paginate.py", "tests/test_partial_page.py", "tests/test_slug.py"]
 
 [solution]
 patch = "fix.patch"

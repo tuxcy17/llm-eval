@@ -1,14 +1,14 @@
 # Bac à sable Harbor
 
 Premier benchmark local d'un agent de codage avec [Harbor](https://docs.harborframework.com) (testé avec **Harbor 0.23.0**).
-Une mini-codebase Python contient un bug connu. On en fait une tâche Harbor « issue à résoudre », dans l'esprit de SWE-bench, puis on la fait résoudre par Claude Code.
+Les tâches sont des « issues à résoudre » dans l'esprit de SWE-bench, posées sur une codebase hébergée dans un **dépôt externe** ([tuxcy17/fake-app](https://github.com/tuxcy17/fake-app)) à une révision donnée. On les fait résoudre par Claude Code.
 
 ## Arborescence
 
 ```
 harbor-sandbox/
-├── project/                       # codebase de référence (état CORRIGÉ)
-├── tasks/                         # une tâche Harbor par dossier
+├── specs/                         # SOURCE DE VÉRITÉ : une spec par tâche (dépôt + révision, patchs, limites)
+├── tasks/                         # tâches Harbor GÉNÉRÉES par scripts/make_task.py (une par dossier)
 │   ├── fix-bulk-discount/         # bugfix : seuil de remise volume (> au lieu de >=)
 │   ├── fix-pagination/            # bugfix : dernière page partielle perdue (division entière)
 │   ├── fix-slugify-accents/       # bugfix : accents traités comme séparateurs
@@ -16,10 +16,11 @@ harbor-sandbox/
 │   Chaque tâche contient :
 │   ├── instruction.md             # l'issue, telle qu'un utilisateur l'écrirait
 │   ├── task.toml                  # timeouts et ressources
-│   ├── environment/               # image Docker : /app en état BUGGÉ, 1 seul commit git
-│   ├── solution/solve.sh          # correctif de référence (agent « oracle »)
+│   ├── environment/               # Dockerfile ; app/ = codebase récupérée du dépôt externe (non versionnée), 1 seul commit git
+│   ├── solution/                  # correctif de référence (agent « oracle »)
 │   └── tests/                     # tests cachés + test.sh (injectés dans /tests à la vérification)
 ├── scripts/
+│   ├── make_task.py               # specs/<nom>/ → tasks/<nom>/ (--all pour toutes)
 │   ├── check_prereqs.sh           # phase 0
 │   ├── run_oracle.sh              # phase 3 : solution de référence → resolved = 1
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
@@ -34,32 +35,50 @@ harbor-sandbox/
     └── REPORT.md                  # résultats et observations
 ```
 
-## Le bug
+## La codebase des tâches
 
-Règle métier : toute ligne dont la quantité est **≥ 10** bénéficie de 10 % de remise.
-La version buggée (`environment/app/pricing/cart.py`) teste `quantity > 10`, donc une ligne de 10 unités exactement n'est pas remisée.
+Le code vit dans [tuxcy17/fake-app](https://github.com/tuxcy17/fake-app), un dépôt Python minuscule (`pricing/`, `paging/`, `textutils/`) à l'historique linéaire. Chaque tâche est un couple (révision de base, commit de correction), comme en SWE-bench : l'**état donné à l'agent est le parent du commit de correction**, et le diff de ce commit fournit le correctif de référence et les tests cachés.
 
-| Tests | Où | Rôle |
+| Tâche | Base (parent) | Commit de correction |
 |---|---|---|
-| `tests/test_cart.py` (7 cas, 8 tests) | dans l'image, visibles par l'agent | PASS_TO_PASS : ne doivent pas casser |
-| `test_bulk_discount.py` (3 tests) | uniquement dans `tasks/.../tests/` | FAIL_TO_PASS : prouvent la correction |
+| `fix-bulk-discount` | `5137975` | `c7a3aae` Apply the bulk discount from 10 units |
+| `fix-pagination` | `c7a3aae` | `2660c64` Count the last partial page |
+| `fix-slugify-accents` | `2660c64` | `8dfba35` Strip accents when slugifying |
+| `add-coupon-code` | `8dfba35` | `18f3b94` Add coupon codes to the cart |
 
-Le verifier (`tests/test.sh`) écrit `/logs/verifier/reward.json` :
-`{"resolved": f2p*p2p, "f2p": 0|1, "p2p": 0|1}`. Il écrit ce fichier même si pytest plante.
+Pour chaque tâche : les tests existants à la base sont les PASS_TO_PASS (visibles par l'agent, ne doivent pas casser) ; le fichier de tests ajouté par le commit de correction est le FAIL_TO_PASS (caché, appliqué à la vérification). Le verifier (`tests/test.sh`) écrit `/logs/verifier/reward.json` : `{"resolved": f2p*p2p, "f2p": 0|1, "p2p": 0|1}`, même si pytest plante.
+
+> Le dépôt est **privé** : les specs utilisent l'URL SSH (`git@github.com:…`), donc `make_task.py` s'appuie sur votre clé SSH locale (un accès HTTPS sans identifiants échoue avec « unable to get password »). L'agent ne voit jamais l'historique : l'image ne contient qu'un commit, sans remote.
 
 ## Générer une tâche depuis une spec
 
 `tasks/<nom>/` est un **artefact généré** : ne l'éditez pas à la main. La source de vérité est `specs/<nom>/spec.toml` (dépôt + révision SHA, script de préparation optionnel, patch de tests cachés, patch de correction, limites, ressources).
 
 ```bash
+scripts/make_task.py --all               # génère toutes les tâches (à faire après un clone)
 scripts/make_task.py fix-bulk-discount   # écrase tasks/fix-bulk-discount/
 ```
 
+- `tasks/*/environment/app/` n'est **pas versionné** : il est récupéré du dépôt externe à la génération. Lancez `scripts/make_task.py --all` avant les scripts `run_*.sh` sur un clone neuf.
 - La révision est récupérée **sur l'hôte** (`git fetch --depth 1` du seul SHA), puis copiée dans l'image : les dépôts privés utilisent vos identifiants locaux, aucun secret ne finit dans une couche Docker, et l'agent ne voit aucun historique amont.
 - `source.setup` (optionnel) s'exécute dans `/app` au build, avant le commit de référence unique.
 - `[limits]` produit les timeouts de `task.toml` ; `max_turns` et `max_budget_usd` vont dans `limits.env` (non lu par Harbor, destiné à `run_claude.sh`).
 - Guide complet pour écrire une tâche : [docs/WRITING_TASKS.md](docs/WRITING_TASKS.md).
 - Après génération, rejouez `run_oracle.sh` (resolved = 1) puis `run_nop.sh` (resolved = 0, p2p = 1).
+
+## Raccourcis `make`
+
+Un `Makefile` à la racine du dépôt pilote les actions principales (`make` seul affiche l'aide) :
+
+| Commande | Action |
+|---|---|
+| `make prereqs` | vérifie Docker, Harbor et les identifiants |
+| `make tasks` / `make task TASK=<nom>` | génère toutes les tâches / une tâche depuis `specs/` |
+| `make check [TASK=<nom>]` | valide les tâches : oracle puis nop, sans consommer de quota |
+| `make claude [TASKS="a b"] [CLAUDE_MODELS="m"] [ARGS="--n-attempts 1"]` | lance Claude Code (quota, `CLAUDE_CODE_OAUTH_TOKEN` requis) |
+| `make metrics` / `make plot` / `make view` | CSV et résumé / graphiques / navigateur de trajectoires |
+
+`oracle`, `nop` et `claude` génèrent automatiquement les tâches dont la codebase n'a pas encore été récupérée (clone neuf).
 
 ## Mode d'emploi
 
@@ -73,8 +92,8 @@ export CLAUDE_CODE_OAUTH_TOKEN=...      # généré par `claude setup-token`, ja
 unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 scripts/check_prereqs.sh
 
-# 1. Codebase : tests locaux hors Docker
-(cd project && uvx --python 3.12 pytest -q)
+# 1. Générer les tâches (récupère la codebase du dépôt externe)
+scripts/make_task.py --all
 
 # 3-4. Valider les tâches avec les agents de contrôle (aucun quota consommé)
 scripts/run_oracle.sh        # attendu : resolved = 1 sur chaque tâche

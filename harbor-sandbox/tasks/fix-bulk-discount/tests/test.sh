@@ -20,7 +20,7 @@ if cd /app; then
         fi
 
         echo "=== PASS_TO_PASS ==="
-        if python -m pytest -rA -p no:cacheprovider tests/test_cart.py; then
+        if python -m pytest -rA -p no:cacheprovider tests/test_cart.py tests/test_paginate.py tests/test_slug.py; then
             p2p=1
         fi
     else

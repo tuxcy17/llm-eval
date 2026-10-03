@@ -6,15 +6,14 @@ name = "fix-pagination"
 instruction = "instruction.md"
 
 [source]
-repo = "../../.."
-revision = "8e6147f83c557367091bda601ecbaf2d7511be2e"
-subdir = "harbor-sandbox/tasks/fix-pagination/environment/app"
+repo = "git@github.com:tuxcy17/fake-app.git"
+revision = "c7a3aaeed4ed51dd7bb5138eb7ca5ade411eb9f4"
 
 [tests]
 patch = "tests.patch"
 command = "python -m pytest -rA -p no:cacheprovider"
 f2p = ["tests/test_partial_page.py"]
-p2p = ["tests/test_paginate.py"]
+p2p = ["tests/test_bulk_discount.py", "tests/test_cart.py", "tests/test_paginate.py", "tests/test_slug.py"]
 
 [solution]
 patch = "fix.patch"
