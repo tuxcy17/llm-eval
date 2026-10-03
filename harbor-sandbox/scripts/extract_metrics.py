@@ -10,6 +10,7 @@ run_claude.sh creates one job per task (claude-code-<ts>-<task>); all matching
 jobs are aggregated, and the summary is grouped by (task, agent, model).
     jobs/<job_name>/<trial_name>/verifier/reward.json
     jobs/<job_name>/<trial_name>/agent/trajectory.json   (ATIF, LLM agents only)
+    jobs/<job_name>/<trial_name>/agent/claude-code.txt   (claude stream-json)
 
 Every field is optional: missing files or keys yield empty cells.
 """
@@ -34,6 +35,8 @@ COLUMNS = [
     "max_turns",
     "max_budget_usd",
     "status",
+    "stop_reason",
+    "num_turns",
     "resolved",
     "f2p",
     "p2p",
@@ -93,6 +96,24 @@ def seconds_between(span: Any) -> float | None:
     return round(delta.total_seconds(), 2)
 
 
+def claude_final_result(log: Path) -> dict | None:
+    """Last `{"type": "result"}` line of a claude stream-json log, if any."""
+    try:
+        lines = log.read_text(errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        if '"type":"result"' not in line:
+            continue
+        try:
+            data = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(data, dict) and data.get("type") == "result":
+            return data
+    return None
+
+
 def is_trial_result(data: Any) -> bool:
     return isinstance(data, dict) and "trial_name" in data
 
@@ -123,6 +144,14 @@ def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
             row[key] = rewards.get(key)
     else:
         row["status"] = "infra_error"
+
+    # Harbor may label a run stopped by --max-turns as ApiRateLimitError (the
+    # stream contains rate_limit_event lines): the claude result line is the
+    # reliable source of why the agent stopped.
+    final = claude_final_result(trial_dir / "agent" / "claude-code.txt")
+    if final:
+        row["stop_reason"] = final.get("terminal_reason") or final.get("subtype")
+        row["num_turns"] = final.get("num_turns")
 
     trajectory = load_json(trial_dir / "agent" / "trajectory.json")
     final_metrics = get(trajectory, "final_metrics") or {}
@@ -180,7 +209,7 @@ def print_summary(rows: list[dict]) -> None:
         groups.setdefault((row["task"], row["agent"], row["model"]), []).append(row)
 
     header = (
-        f"{'task':<22}{'agent':<12}{'model':<22}{'trials':>7}{'infra':>7}{'resolved':>10}"
+        f"{'task':<22}{'agent':<12}{'model':<22}{'trials':>7}{'infra':>7}{'resolved':>10}{'hit_max':>9}"
         f"{'prompt_tok':>12}{'compl_tok':>11}{'steps':>7}{'dur_s':>8}"
     )
     print(header)
@@ -196,12 +225,13 @@ def print_summary(rows: list[dict]) -> None:
             f"{str(task or '-'):<22}{str(agent):<12}{str(model or '-'):<22}"
             f"{len(group):>7}{n_infra:>7}"
             f"{rate:>10}"
+            f"{sum(r['stop_reason'] == 'max_turns' for r in group):>9}"
             f"{fmt(mean([r['total_prompt_tokens'] for r in scored]), 0):>12}"
             f"{fmt(mean([r['total_completion_tokens'] for r in scored]), 0):>11}"
             f"{fmt(mean([r['n_steps'] for r in scored])):>7}"
             f"{fmt(mean([r['duration_sec'] for r in scored])):>8}"
         )
-    print("(averages and resolution rate exclude infra_error trials)")
+    print("(averages and resolution rate exclude infra_error trials; hit_max = trials stopped by the turn limit)")
 
 
 def main() -> int:

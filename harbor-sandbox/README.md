@@ -100,5 +100,6 @@ Si les conteneurs passent par un proxy qui intercepte TLS, `pip` et `apt` échou
 3. **Un `reward.json` peut porter plusieurs clés.** Harbor agrège chaque clé (`F2P`, `P2P`, `Resolved` dans le tableau de fin de job).
 4. **La doc peut diverger de la version installée.** Ici, le code source de Harbor dans le venv `uv` a servi de référence (schéma `task.toml`, chemins, format ATIF), et `harbor task init` génère un squelette canonique.
 5. **Le réseau est le vrai sujet en entreprise.** L'installation de l'agent dans le conteneur nécessite `apt` (nodejs, npm, curl) et `downloads.claude.ai`. L'inférence nécessite `api.anthropic.com`.
+6. **`--ak max_turns=N` est bien appliqué** (`claude --max-turns N` dans le conteneur), mais Harbor 0.23.0 étiquette alors l'essai `ApiRateLimitError` alors que Claude s'est simplement arrêté (`error_max_turns`, code de sortie 1) : le flux contient des `rate_limit_event`. L'essai est quand même vérifié. `extract_metrics.py` lit la ligne `result` de `agent/claude-code.txt` pour exposer `stop_reason` et `num_turns`. Ne pas utiliser `--retry-include ApiRateLimitError` dans ce cas.
 
 Détails et chiffres : [docs/REPORT.md](docs/REPORT.md).
