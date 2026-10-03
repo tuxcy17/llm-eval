@@ -195,10 +195,10 @@ Une tâche n'est utilisable que si les deux contrôles passent :
 
 ```bash
 export CLAUDE_CODE_OAUTH_TOKEN=...          # jamais dans un fichier
-TASKS="<nom>" scripts/run_claude.sh claude-sonnet-5-5 --n-attempts 1
+CLAUDE_MODELS="claude-sonnet-5-5" TASKS="<nom>" scripts/run_claude.sh --n-attempts 1
 ```
 
-`run_claude.sh` lance un `harbor run` par tâche et passe `--ak max_turns` / `--ak max_budget_usd` si la spec les définit. Sans `TASKS`, il lance toutes les tâches de `tasks/`.
+`run_claude.sh` lance, pour chaque modèle (`MODELS` en tête du script, ou `CLAUDE_MODELS`), un `harbor run` **par tâche**, avec 3 essais en parallèle (`N_CONCURRENT`). Il passe `--ak max_turns` / `--ak max_budget_usd` si la spec les définit. Sans `TASKS` (noms) ni `TASK_PATH` (`tasks/<nom>`), il lance toutes les tâches de `tasks/`. Les jobs s'appellent `claude-code-<modèle>-<horodatage>-<tâche>`.
 
 Résultats : `python3 scripts/extract_metrics.py` (colonnes `task`, `task_checksum`, `stop_reason`, `num_turns`…) ou `harbor view jobs`.
 

@@ -1,0 +1,24 @@
+diff --git a/tests/test_accents.py b/tests/test_accents.py
+new file mode 100644
+index 0000000..b75fd1a
+--- /dev/null
++++ b/tests/test_accents.py
+@@ -0,0 +1,18 @@
++"""Hidden FAIL_TO_PASS tests for accented characters."""
++
++import pytest
++
++from textutils.slug import slugify
++
++
++@pytest.mark.parametrize(
++    "title, expected",
++    [
++        ("Café Crème", "cafe-creme"),
++        ("Été à Paris", "ete-a-paris"),
++        ("  Déjà vu !  ", "deja-vu"),
++        ("Garçon, où êtes-vous ?", "garcon-ou-etes-vous"),
++    ],
++)
++def test_accents_are_stripped(title, expected):
++    assert slugify(title) == expected
