@@ -51,9 +51,9 @@ p2p = ["tests/test_cart.py"]
 patch = "fix.patch"
 
 [environment]
-base_image = "python:3.12-slim"
-packages = []                        # optionnel : paquets système
-pip = ["pytest"]                     # optionnel : paquets Python
+base_image = "ubuntu:24.04"          # optionnel (défaut : ubuntu:24.04)
+packages = ["python3", "python3-pytest", "python-is-python3"]   # optionnel
+# pip = ["requests"]                 # optionnel : paquets Python
 cpus = 1
 memory_mb = 1024
 storage_mb = 2048
@@ -80,7 +80,7 @@ tags = ["python"]
 | `tests.command` | oui | Commande préfixant la liste de fichiers de `f2p`, puis de `p2p`. |
 | `tests.f2p` | oui | Fichiers de tests qui échouent avant le correctif et réussissent après. |
 | `tests.p2p` | oui | Fichiers de tests qui réussissent avant et après. |
-| `environment.base_image` | oui | N'importe quelle image Linux : voir « Choisir l'image de base ». |
+| `environment.base_image` | non | Défaut `ubuntu:24.04`. N'importe quelle image Linux : voir « Choisir l'image de base ». |
 | `environment.packages` | non | Paquets système à installer (outils de build, JDK, etc.). |
 | `environment.pip` | non | Paquets Python ; l'image doit fournir `pip`. |
 | `limits.*_timeout_sec` | oui | Enforcés par Harbor. `build_timeout_sec` couvre aussi `setup.sh` : prévoyez large pour un vrai projet. |
@@ -88,21 +88,45 @@ tags = ["python"]
 
 ## Choisir l'image de base
 
-`base_image` est le `FROM` du Dockerfile généré. Le générateur ne suppose ni Python ni Debian :
+`base_image` est le `FROM` du Dockerfile généré. **Défaut : `ubuntu:24.04`**, adaptée à Python, Java et C. Le générateur ne suppose ni Python ni Debian :
 
-- **Le gestionnaire de paquets est détecté** (`apt-get`, `apk`, `dnf`, `microdnf` ou `yum`). Les images Debian/Ubuntu, Alpine, Fedora et RHEL sont donc utilisables.
+- **Le gestionnaire de paquets est détecté** (`apt-get`, `apk`, `dnf`, `microdnf` ou `yum`).
 - **`git` et `bash` sont ajoutés automatiquement** s'ils manquent : le premier sert au commit de référence, le second à `test.sh`, `solve.sh` et `setup.sh`.
-- **`packages`** liste les paquets système propres à votre projet. Les noms dépendent de la distribution (`python3` partout, mais `build-essential` sur Debian contre `build-base` sur Alpine).
-- **`pip`** n'est utilisé que s'il est renseigné, et échoue clairement si l'image n'a pas `pip`. Pour d'autres écosystèmes (npm, mvn, cargo…), installez dans `setup.sh`.
+- **`packages`** liste les paquets système du projet. Les noms dépendent de la distribution.
+- **`pip`** n'est utilisé que s'il est renseigné ; l'image doit fournir `python3` et `pip` (sur Ubuntu : paquet `python3-pip`). `PIP_BREAK_SYSTEM_PACKAGES=1` est positionné, car Ubuntu protège le Python système (PEP 668) et le conteneur est jetable.
+
+### Ubuntu 24.04 : points d'attention
+
+- Il n'y a pas de commande `python`, seulement `python3` : ajoutez `python-is-python3` si `tests.command` appelle `python`.
+- Pour pytest, `python3-pytest` (apt) évite `pip`.
+- Python y est en version 3.12.
+
+### Exemples
 
 ```toml
-# Exemple : projet Node sur Alpine
+# Python
 [environment]
-base_image = "node:20-alpine"
-packages = ["make"]
+packages = ["python3", "python3-pytest", "python-is-python3"]
+
+# C (CMake)
+[environment]
+packages = ["build-essential", "cmake"]
+
+# Java (Maven)
+[environment]
+packages = ["openjdk-21-jdk-headless", "maven"]
 ```
 
-Les images testées (build, git, bash, commit de référence) : `python:3.12-slim`, `alpine:3.20`, `ubuntu:24.04`, `fedora:40`. L'installation de l'agent `claude-code` dans le conteneur par Harbor (nodejs, npm, curl) a, elle, été éprouvée uniquement sur l'image Debian de `python:3.12-slim` ; sur Alpine ou RHEL, vérifiez-la avec un run réel.
+Les installations de ces trois jeux de paquets sur `ubuntu:24.04` ont été testées (gcc 13.3, cmake 3.28, javac 21, Maven 3.8.7, pytest, pip). **Les tâches Java et C elles-mêmes (compilation, tests, run d'un agent) n'ont pas été testées de bout en bout.**
+
+### Java et C : à prévoir
+
+- **Commande de test** : `test.sh` exécute `<command> <f2p>` puis `<command> <p2p>`, chaque élément de la liste étant un argument. Cela convient à pytest, mais aussi, en théorie, à Maven (`command = "mvn -q -B test"`, `f2p = ["-Dtest=BulkDiscountTest"]`) ou à CTest (`command = "ctest --test-dir build --output-on-failure"`, `f2p = ["-R", "bulk"]`).
+- **Compilation** : pour C, il faut compiler après l'application de `tests.patch` ; le générateur n'a pas d'étape de build dédiée aujourd'hui. Il faudrait l'ajouter (par exemple `tests.build`) ou passer par un script du dépôt.
+- **Dépendances** : Maven télécharge ses dépendances. Préchargez-les dans `setup.sh` (`mvn -B dependency:go-offline`) pour que le build ne dépende pas du réseau pendant l'évaluation, et ajoutez-les au temps de `build_timeout_sec`.
+- **Ressources** : un build Java ou C est plus gourmand que pytest ; augmentez `memory_mb` et `cpus` si nécessaire.
+
+Les images testées avec Dockerfile généré : `ubuntu:24.04` (et tâche pilote), `python:3.12-slim`, `alpine:3.20`, `fedora:40`. L'installation de l'agent `claude-code` dans le conteneur par Harbor (nodejs, npm, curl) n'a été éprouvée que sur Debian/Ubuntu ; sur Alpine ou RHEL, vérifiez-la avec un run réel.
 
 ## Écrire l'instruction
 
