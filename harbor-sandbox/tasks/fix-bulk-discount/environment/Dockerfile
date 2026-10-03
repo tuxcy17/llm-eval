@@ -5,7 +5,7 @@ FROM ubuntu:24.04
 # (git, bash) when the base image lacks them. The package manager is detected,
 # so Debian/Ubuntu, Alpine and RHEL-family images all work (see README: CA shim).
 RUN set -eu; \
-    pkgs="python3 python3-pytest python-is-python3"; \
+    pkgs="ca-certificates"; \
     command -v git >/dev/null 2>&1 || pkgs="git $pkgs"; \
     command -v bash >/dev/null 2>&1 || pkgs="bash $pkgs"; \
     if [ -n "${pkgs# }" ]; then \
@@ -25,6 +25,17 @@ RUN set -eu; \
             echo "no supported package manager to install: $pkgs" >&2; exit 1; \
         fi; \
     fi
+
+# Python via uv (spec: environment.python / python_packages): a venv at /opt/venv,
+# first on PATH, so `python` and `pytest` resolve for the agent and the verifier.
+# uv downloads the interpreter if no matching one is installed.
+COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /uvx /usr/local/bin/
+ENV UV_PYTHON_INSTALL_DIR=/opt/python \
+    UV_LINK_MODE=copy \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+RUN uv venv /opt/venv --python 3.12 \
+    && uv pip install --no-cache pytest
 
 COPY app/ /app/
 WORKDIR /app

@@ -92,7 +92,7 @@ L'agent `claude-code` de Harbor lit `CLAUDE_CODE_OAUTH_TOKEN` dans l'environneme
 
 ### Réseau derrière un proxy TLS (poste d'entreprise, sandbox cloud)
 
-Si les conteneurs passent par un proxy qui intercepte TLS, `pip` et `apt` échouent dans `docker build` avec l'erreur `CERTIFICATE_VERIFY_FAILED`. `scripts/build_ca_base_image.sh <ca.crt>` reconstruit alors localement `python:3.12-slim` **sous le même tag**, avec le CA ajouté. Le Dockerfile de la tâche reste inchangé. Si les miroirs Debian sont eux aussi bloqués, passez une image source qui contient déjà git (`... python:3.12-slim python:3.12`) : le Dockerfile n'installe git via apt que s'il est absent.
+Si les conteneurs passent par un proxy qui intercepte TLS, `apt` (et sans doute les téléchargements de `uv`, non vérifié : `UV_NATIVE_TLS=1` est à essayer) échoue dans `docker build` avec l'erreur `CERTIFICATE_VERIFY_FAILED`. `scripts/build_ca_base_image.sh <ca.crt>` reconstruit alors localement `python:3.12-slim` **sous le même tag**, avec le CA ajouté. Le Dockerfile de la tâche reste inchangé. Si les miroirs Debian sont eux aussi bloqués, passez une image source qui contient déjà git (`... python:3.12-slim python:3.12`) : le Dockerfile n'installe git via apt que s'il est absent.
 
 ## Enseignements clés
 

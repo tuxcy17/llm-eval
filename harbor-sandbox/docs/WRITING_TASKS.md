@@ -52,8 +52,9 @@ patch = "fix.patch"
 
 [environment]
 base_image = "ubuntu:24.04"          # optionnel (défaut : ubuntu:24.04)
-packages = ["python3", "python3-pytest", "python-is-python3"]   # optionnel
-# pip = ["requests"]                 # optionnel : paquets Python
+# packages = []                      # optionnel : paquets système (apt, apk…)
+python = "3.12"                      # optionnel : version de Python (gérée par uv)
+python_packages = ["pytest"]         # optionnel : paquets Python (installés par uv)
 cpus = 1
 memory_mb = 1024
 storage_mb = 2048
@@ -82,7 +83,9 @@ tags = ["python"]
 | `tests.p2p` | oui | Fichiers de tests qui réussissent avant et après. |
 | `environment.base_image` | non | Défaut `ubuntu:24.04`. N'importe quelle image Linux : voir « Choisir l'image de base ». |
 | `environment.packages` | non | Paquets système à installer (outils de build, JDK, etc.). |
-| `environment.pip` | non | Paquets Python ; l'image doit fournir `pip`. |
+| `environment.python` | non | Version de Python (`"3.12"`, `"3.13"`…) : uv télécharge l'interpréteur si besoin et crée un venv `/opt/venv`. |
+| `environment.python_packages` | non | Paquets Python, installés par `uv pip install` dans ce venv. |
+| `environment.uv_version` | non | Tag de l'image `ghcr.io/astral-sh/uv` (défaut : version épinglée dans `make_task.py`). |
 | `limits.*_timeout_sec` | oui | Enforcés par Harbor. `build_timeout_sec` couvre aussi `setup.sh` : prévoyez large pour un vrai projet. |
 | `limits.max_turns`, `max_budget_usd` | non | Ne sont **pas** lus par Harbor : écrits dans `limits.env`, transmis par `run_claude.sh` à l'agent (`--ak`). |
 
@@ -93,20 +96,22 @@ tags = ["python"]
 - **Le gestionnaire de paquets est détecté** (`apt-get`, `apk`, `dnf`, `microdnf` ou `yum`).
 - **`git` et `bash` sont ajoutés automatiquement** s'ils manquent : le premier sert au commit de référence, le second à `test.sh`, `solve.sh` et `setup.sh`.
 - **`packages`** liste les paquets système du projet. Les noms dépendent de la distribution.
-- **`pip`** n'est utilisé que s'il est renseigné ; l'image doit fournir `python3` et `pip` (sur Ubuntu : paquet `python3-pip`). `PIP_BREAK_SYSTEM_PACKAGES=1` est positionné, car Ubuntu protège le Python système (PEP 668) et le conteneur est jetable.
+- **Python passe par [uv](https://docs.astral.sh/uv/)**, pas par pip. Dès que `python` ou `python_packages` est défini, le générateur copie `uv` depuis l'image officielle épinglée, crée `/opt/venv` et le place en tête du `PATH`. `python` et `pytest` sont donc disponibles pour l'agent comme pour le vérificateur, et l'interpréteur n'a pas besoin d'être installé par `apt` (pas de `python3`, ni de `python-is-python3`). `ca-certificates` est ajouté automatiquement, car uv télécharge en TLS.
+- L'ancienne clé `environment.pip` est refusée avec un message explicite : utilisez `python_packages`.
+- Le build a besoin d'accéder à `ghcr.io` (image de uv) et à GitHub (interpréteurs Python), en plus de PyPI.
 
 ### Ubuntu 24.04 : points d'attention
 
-- Il n'y a pas de commande `python`, seulement `python3` : ajoutez `python-is-python3` si `tests.command` appelle `python`.
-- Pour pytest, `python3-pytest` (apt) évite `pip`.
-- Python y est en version 3.12.
+- Il n'y a pas de Python installé par défaut : déclarez `python` (recommandé), ou installez `python3` via `packages` si vous préférez celui d'Ubuntu (3.12).
+- Pour un projet qui a besoin de ses dépendances, installez-les dans `setup.sh` avec uv, par exemple `uv pip install -e .` (le venv est déjà actif).
 
 ### Exemples
 
 ```toml
 # Python
 [environment]
-packages = ["python3", "python3-pytest", "python-is-python3"]
+python = "3.12"
+python_packages = ["pytest"]
 
 # C (CMake)
 [environment]
@@ -117,7 +122,7 @@ packages = ["build-essential", "cmake"]
 packages = ["openjdk-21-jdk-headless", "maven"]
 ```
 
-Les installations de ces trois jeux de paquets sur `ubuntu:24.04` ont été testées (gcc 13.3, cmake 3.28, javac 21, Maven 3.8.7, pytest, pip). **Les tâches Java et C elles-mêmes (compilation, tests, run d'un agent) n'ont pas été testées de bout en bout.**
+Les installations de ces trois jeux de paquets sur `ubuntu:24.04` ont été testées (gcc 13.3, cmake 3.28, javac 21, Maven 3.8.7, pytest). **Les tâches Java et C elles-mêmes (compilation, tests, run d'un agent) n'ont pas été testées de bout en bout.**
 
 ### Java et C : à prévoir
 
@@ -160,7 +165,7 @@ Script bash exécuté **au build**, dans `/app`, avant le commit de référence.
 ```bash
 #!/bin/bash
 set -euo pipefail
-pip install --no-cache-dir -e .
+uv pip install -e .
 ```
 
 - Il s'exécute une fois à la construction de l'image, jamais pendant le temps de l'agent, et il est mis en cache par Docker.
