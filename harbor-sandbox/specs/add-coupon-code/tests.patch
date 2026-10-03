@@ -1,0 +1,78 @@
+diff --git a/tests/test_coupons.py b/tests/test_coupons.py
+new file mode 100644
+index 0000000..0ec58f1
+--- /dev/null
++++ b/tests/test_coupons.py
+@@ -0,0 +1,72 @@
++"""Hidden FAIL_TO_PASS tests for coupon codes."""
++
++from decimal import Decimal
++
++import pytest
++
++from pricing.cart import Cart, Item
++
++
++def make_cart(*lines):
++    cart = Cart()
++    for name, price, qty in lines:
++        cart.add(Item(name, Decimal(price), qty))
++    return cart
++
++
++def test_percent_coupon():
++    cart = make_cart(("pen", "2.00", 5))
++    cart.apply_coupon("WELCOME10")
++    assert cart.total() == Decimal("9.00")
++
++
++def test_fixed_coupon():
++    cart = make_cart(("pen", "2.00", 5))
++    cart.apply_coupon("SAVE5")
++    assert cart.total() == Decimal("5.00")
++
++
++def test_coupon_applies_after_bulk_discount():
++    # 10 x 3.00 = 30.00 -> bulk 27.00 -> WELCOME10 24.30
++    cart = make_cart(("pen", "3.00", 10))
++    cart.apply_coupon("WELCOME10")
++    assert cart.total() == Decimal("24.30")
++
++
++def test_coupon_is_case_insensitive():
++    cart = make_cart(("pen", "2.00", 5))
++    cart.apply_coupon("welcome10")
++    assert cart.total() == Decimal("9.00")
++
++
++def test_total_never_negative():
++    cart = make_cart(("pen", "1.00", 2))
++    cart.apply_coupon("SAVE5")
++    assert cart.total() == Decimal("0.00")
++
++
++def test_new_coupon_replaces_previous():
++    cart = make_cart(("pen", "2.00", 5))
++    cart.apply_coupon("SAVE5")
++    cart.apply_coupon("WELCOME10")
++    assert cart.total() == Decimal("9.00")
++
++
++def test_unknown_coupon_rejected_and_previous_kept():
++    cart = make_cart(("pen", "2.00", 5))
++    cart.apply_coupon("SAVE5")
++    with pytest.raises(ValueError):
++        cart.apply_coupon("BOGUS")
++    assert cart.total() == Decimal("5.00")
++
++
++def test_rounding_happens_once_at_the_end():
++    # 0.15 * 3 = 0.45 -> WELCOME10 -> 0.405 -> 0.41 (half-up on the final value)
++    cart = make_cart(("candy", "0.15", 3))
++    cart.apply_coupon("WELCOME10")
++    assert cart.total() == Decimal("0.41")
++
++
++def test_no_coupon_unchanged():
++    cart = make_cart(("pen", "2.00", 5))
++    assert cart.total() == Decimal("10.00")

@@ -7,6 +7,11 @@ Layout observed with Harbor 0.23.0 (see docs/REPORT.md):
     jobs/<job_name>/<trial_name>/result.json     trial result (TrialResult)
     jobs/<job_name>/<trial_name>/verifier/reward.json
     jobs/<job_name>/<trial_name>/agent/trajectory.json   (ATIF, LLM agents only)
+    jobs/<job_name>/<trial_name>/agent/claude-code.txt   (claude stream-json)
+
+run_claude.sh creates one job per model and task
+(claude-code-<model>-<ts>-<task>); all matching jobs are aggregated, and the
+summary is grouped by (task, agent, model).
 
 Every field is optional: missing files or keys yield empty cells.
 """
@@ -23,10 +28,16 @@ from typing import Any
 
 COLUMNS = [
     "job",
+    "task",
+    "task_checksum",
     "trial",
     "agent",
     "model",
+    "max_turns",
+    "max_budget_usd",
     "status",
+    "stop_reason",
+    "num_turns",
     "resolved",
     "f2p",
     "p2p",
@@ -86,6 +97,24 @@ def seconds_between(span: Any) -> float | None:
     return round(delta.total_seconds(), 2)
 
 
+def claude_final_result(log: Path) -> dict | None:
+    """Last `{"type": "result"}` line of a claude stream-json log, if any."""
+    try:
+        lines = log.read_text(errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        if '"type":"result"' not in line:
+            continue
+        try:
+            data = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(data, dict) and data.get("type") == "result":
+            return data
+    return None
+
+
 def is_trial_result(data: Any) -> bool:
     return isinstance(data, dict) and "trial_name" in data
 
@@ -94,6 +123,11 @@ def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
     row: dict[str, Any] = {key: None for key in COLUMNS}
     row["job"] = job_name
     row["trial"] = result.get("trial_name", trial_dir.name)
+    row["task"] = result.get("task_name")
+    # Identifies the generated task version (changes when spec/revision changes).
+    row["task_checksum"] = (result.get("task_checksum") or "")[:12] or None
+    row["max_turns"] = get(result, "config", "agent", "kwargs", "max_turns")
+    row["max_budget_usd"] = get(result, "config", "agent", "kwargs", "max_budget_usd")
     row["agent"] = get(result, "agent_info", "name") or get(
         result, "config", "agent", "name"
     )
@@ -111,6 +145,14 @@ def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
             row[key] = rewards.get(key)
     else:
         row["status"] = "infra_error"
+
+    # Harbor may label a run stopped by --max-turns as ApiRateLimitError (the
+    # stream contains rate_limit_event lines): the claude result line is the
+    # reliable source of why the agent stopped.
+    final = claude_final_result(trial_dir / "agent" / "claude-code.txt")
+    if final:
+        row["stop_reason"] = final.get("terminal_reason") or final.get("subtype")
+        row["num_turns"] = final.get("num_turns")
 
     trajectory = load_json(trial_dir / "agent" / "trajectory.json")
     final_metrics = get(trajectory, "final_metrics") or {}
@@ -165,28 +207,32 @@ def fmt(value: float | None, digits: int = 1) -> str:
 def print_summary(rows: list[dict]) -> None:
     groups: dict[tuple, list[dict]] = {}
     for row in rows:
-        groups.setdefault((row["agent"], row["model"]), []).append(row)
+        groups.setdefault((row["task"], row["agent"], row["model"]), []).append(row)
 
     header = (
-        f"{'agent':<14}{'model':<28}{'trials':>7}{'infra':>7}{'resolved':>10}"
+        f"{'task':<22}{'agent':<12}{'model':<22}{'trials':>7}{'infra':>7}{'resolved':>10}{'hit_max':>9}"
         f"{'prompt_tok':>12}{'compl_tok':>11}{'steps':>7}{'dur_s':>8}"
     )
     print(header)
     print("-" * len(header))
-    for (agent, model), group in sorted(groups.items(), key=lambda kv: str(kv[0])):
+    for (task, agent, model), group in sorted(
+        groups.items(), key=lambda kv: str(kv[0])
+    ):
         scored = [r for r in group if r["status"] == "ok"]
         n_infra = len(group) - len(scored)
         resolved = mean([r["resolved"] for r in scored])
         rate = "-" if resolved is None else f"{resolved:.0%}"
         print(
-            f"{str(agent):<14}{str(model or '-'):<28}{len(group):>7}{n_infra:>7}"
+            f"{str(task or '-'):<22}{str(agent):<12}{str(model or '-'):<22}"
+            f"{len(group):>7}{n_infra:>7}"
             f"{rate:>10}"
+            f"{sum(r['stop_reason'] == 'max_turns' for r in group):>9}"
             f"{fmt(mean([r['total_prompt_tokens'] for r in scored]), 0):>12}"
             f"{fmt(mean([r['total_completion_tokens'] for r in scored]), 0):>11}"
             f"{fmt(mean([r['n_steps'] for r in scored])):>7}"
             f"{fmt(mean([r['duration_sec'] for r in scored])):>8}"
         )
-    print("(averages and resolution rate exclude infra_error trials)")
+    print("(averages and resolution rate exclude infra_error trials; hit_max = trials stopped by the turn limit)")
 
 
 def main() -> int:

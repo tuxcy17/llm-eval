@@ -1,0 +1,49 @@
+diff --git a/pricing/cart.py b/pricing/cart.py
+index 9d1549f..351d1c9 100644
+--- a/pricing/cart.py
++++ b/pricing/cart.py
+@@ -1,4 +1,4 @@
+-"""Shopping cart with a per-line bulk discount."""
++"""Shopping cart with a per-line bulk discount and coupon codes."""
+ 
+ from dataclasses import dataclass, field
+ from decimal import ROUND_HALF_UP, Decimal
+@@ -7,6 +7,12 @@ BULK_THRESHOLD = 10
+ BULK_DISCOUNT_RATE = Decimal("0.10")
+ CENT = Decimal("0.01")
+ 
++# code -> (percent rate, fixed amount)
++COUPONS: dict[str, tuple[Decimal, Decimal]] = {
++    "WELCOME10": (Decimal("0.10"), Decimal("0")),
++    "SAVE5": (Decimal("0"), Decimal("5.00")),
++}
++
+ 
+ @dataclass
+ class Item:
+@@ -27,10 +33,17 @@ class Item:
+ @dataclass
+ class Cart:
+     items: list[Item] = field(default_factory=list)
++    coupon: str | None = None
+ 
+     def add(self, item: Item) -> None:
+         self.items.append(item)
+ 
++    def apply_coupon(self, code: str) -> None:
++        normalized = code.strip().upper()
++        if normalized not in COUPONS:
++            raise ValueError(f"unknown coupon code: {code!r}")
++        self.coupon = normalized
++
+     def subtotal(self) -> Decimal:
+         return sum((item.line_total() for item in self.items), Decimal("0"))
+ 
+@@ -41,4 +54,7 @@ class Cart:
+             if item.quantity >= BULK_THRESHOLD:
+                 line -= line * BULK_DISCOUNT_RATE
+             total += line
++        if self.coupon is not None:
++            rate, fixed = COUPONS[self.coupon]
++            total = max(total - total * rate - fixed, Decimal("0"))
+         return total.quantize(CENT, rounding=ROUND_HALF_UP)

@@ -23,7 +23,7 @@ harbor-sandbox/
 │   ├── check_prereqs.sh           # phase 0
 │   ├── run_oracle.sh              # phase 3 : solution de référence → resolved = 1
 │   ├── run_nop.sh                 # phase 4 : agent qui ne fait rien → resolved = 0, p2p = 1
-│   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle de MODELS, 3 essais, 3 en parallèle
+│   ├── run_claude.sh              # phase 5 : Claude Code, un job par modèle et par tâche, 3 essais, 3 en parallèle
 │   ├── extract_metrics.py         # phase 6 : jobs/ → docs/metrics.csv + résumé
 │   ├── plot_metrics.py            # phase 6 : docs/metrics.csv → docs/comparison.html (graphiques par modèle)
 │   ├── view.sh                    # phase 6 : interface web de navigation dans jobs/
@@ -46,6 +46,20 @@ La version buggée (`environment/app/pricing/cart.py`) teste `quantity > 10`, do
 
 Le verifier (`tests/test.sh`) écrit `/logs/verifier/reward.json` :
 `{"resolved": f2p*p2p, "f2p": 0|1, "p2p": 0|1}`. Il écrit ce fichier même si pytest plante.
+
+## Générer une tâche depuis une spec
+
+`tasks/<nom>/` est un **artefact généré** : ne l'éditez pas à la main. La source de vérité est `specs/<nom>/spec.toml` (dépôt + révision SHA, script de préparation optionnel, patch de tests cachés, patch de correction, limites, ressources).
+
+```bash
+scripts/make_task.py fix-bulk-discount   # écrase tasks/fix-bulk-discount/
+```
+
+- La révision est récupérée **sur l'hôte** (`git fetch --depth 1` du seul SHA), puis copiée dans l'image : les dépôts privés utilisent vos identifiants locaux, aucun secret ne finit dans une couche Docker, et l'agent ne voit aucun historique amont.
+- `source.setup` (optionnel) s'exécute dans `/app` au build, avant le commit de référence unique.
+- `[limits]` produit les timeouts de `task.toml` ; `max_turns` et `max_budget_usd` vont dans `limits.env` (non lu par Harbor, destiné à `run_claude.sh`).
+- Guide complet pour écrire une tâche : [docs/WRITING_TASKS.md](docs/WRITING_TASKS.md).
+- Après génération, rejouez `run_oracle.sh` (resolved = 1) puis `run_nop.sh` (resolved = 0, p2p = 1).
 
 ## Mode d'emploi
 
@@ -75,11 +89,12 @@ N_CONCURRENT=1 scripts/run_claude.sh          # essais en parallèle (défaut 3,
 Les scripts `run_*.sh` visent par défaut tout le dossier `tasks/` (3 essais par tâche et par modèle pour Claude). Pour cibler :
 
 ```bash
-TASK_PATH=tasks/add-coupon-code scripts/run_claude.sh   # une seule tâche
+TASKS="add-coupon-code fix-pagination" scripts/run_claude.sh   # des tâches par nom
+TASK_PATH=tasks/add-coupon-code scripts/run_claude.sh          # une seule tâche
 scripts/run_claude.sh -i 'fix-*'                        # filtre glob Harbor
 ```
 
-Ajouter une tâche = créer un dossier dans `tasks/` avec les 4 éléments ci-dessous, puis valider avec oracle et nop avant tout run d'agent.
+Ajouter une tâche = écrire une spec dans `specs/` et la générer (voir [docs/WRITING_TASKS.md](docs/WRITING_TASKS.md)), puis valider avec oracle et nop avant tout run d'agent.
 
 ```bash
 
@@ -89,6 +104,8 @@ python3 scripts/plot_metrics.py         # → docs/comparison.html (ouvrir dans 
 scripts/view.sh                         # navigateur de trajectoires (http://127.0.0.1:8080)
 ```
 
+`run_claude.sh` lance, pour chaque modèle, **un `harbor run` par tâche** (job `claude-code-<modèle>-<horodatage>-<tâche>`, 3 essais en parallèle) et passe `--ak max_turns=…` / `--ak max_budget_usd=…` d'après `tasks/<nom>/limits.env`, quand ces limites sont définies dans la spec. Sans limite, seuls les timeouts de `task.toml` s'appliquent. `TASKS` restreint les tâches lancées (par défaut : toutes).
+
 Les résultats bruts vont dans `jobs/<job>/<task>__<id>/`. Ce dossier est ignoré par git, car il contient les transcriptions complètes de l'agent.
 
 ### Authentification de Claude Code
@@ -97,7 +114,7 @@ L'agent `claude-code` de Harbor lit `CLAUDE_CODE_OAUTH_TOKEN` dans l'environneme
 
 ### Réseau derrière un proxy TLS (poste d'entreprise, sandbox cloud)
 
-Si les conteneurs passent par un proxy qui intercepte TLS, `pip` et `apt` échouent dans `docker build` avec l'erreur `CERTIFICATE_VERIFY_FAILED`. `scripts/build_ca_base_image.sh <ca.crt>` reconstruit alors localement `python:3.12-slim` **sous le même tag**, avec le CA ajouté. Le Dockerfile de la tâche reste inchangé. Si les miroirs Debian sont eux aussi bloqués, passez une image source qui contient déjà git (`... python:3.12-slim python:3.12`) : le Dockerfile n'installe git via apt que s'il est absent.
+Si les conteneurs passent par un proxy qui intercepte TLS, `apt` (et sans doute les téléchargements de `uv`, non vérifié : `UV_NATIVE_TLS=1` est à essayer) échoue dans `docker build` avec l'erreur `CERTIFICATE_VERIFY_FAILED`. `scripts/build_ca_base_image.sh <ca.crt>` reconstruit alors localement `python:3.12-slim` **sous le même tag**, avec le CA ajouté. Le Dockerfile de la tâche reste inchangé. Si les miroirs Debian sont eux aussi bloqués, passez une image source qui contient déjà git (`... python:3.12-slim python:3.12`) : le Dockerfile n'installe git via apt que s'il est absent.
 
 ## Enseignements clés
 
@@ -106,5 +123,6 @@ Si les conteneurs passent par un proxy qui intercepte TLS, `pip` et `apt` échou
 3. **Un `reward.json` peut porter plusieurs clés.** Harbor agrège chaque clé (`F2P`, `P2P`, `Resolved` dans le tableau de fin de job).
 4. **La doc peut diverger de la version installée.** Ici, le code source de Harbor dans le venv `uv` a servi de référence (schéma `task.toml`, chemins, format ATIF), et `harbor task init` génère un squelette canonique.
 5. **Le réseau est le vrai sujet en entreprise.** L'installation de l'agent dans le conteneur nécessite `apt` (nodejs, npm, curl) et `downloads.claude.ai`. L'inférence nécessite `api.anthropic.com`.
+6. **`--ak max_turns=N` est bien appliqué** (`claude --max-turns N` dans le conteneur), mais Harbor 0.23.0 étiquette alors l'essai `ApiRateLimitError` alors que Claude s'est simplement arrêté (`error_max_turns`, code de sortie 1) : le flux contient des `rate_limit_event`. L'essai est quand même vérifié. `extract_metrics.py` lit la ligne `result` de `agent/claude-code.txt` pour exposer `stop_reason` et `num_turns`. Ne pas utiliser `--retry-include ApiRateLimitError` dans ce cas.
 
 Détails et chiffres : [docs/REPORT.md](docs/REPORT.md).
