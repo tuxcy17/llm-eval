@@ -1,0 +1,13 @@
+diff --git a/pricing/cart.py b/pricing/cart.py
+index 49598e1..9d1549f 100644
+--- a/pricing/cart.py
++++ b/pricing/cart.py
+@@ -38,7 +38,7 @@ class Cart:
+         total = Decimal("0")
+         for item in self.items:
+             line = item.line_total()
+-            if item.quantity > BULK_THRESHOLD:
++            if item.quantity >= BULK_THRESHOLD:
+                 line -= line * BULK_DISCOUNT_RATE
+             total += line
+         return total.quantize(CENT, rounding=ROUND_HALF_UP)

@@ -6,8 +6,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${repo_root}"
 
+# TASK: task name under tasks/ (default: fix-bulk-discount).
+
 harbor run \
-    --path tasks/fix-bulk-discount \
+    --path "tasks/${TASK:-fix-bulk-discount}" \
     --agent nop \
     --env docker \
     --jobs-dir jobs \
