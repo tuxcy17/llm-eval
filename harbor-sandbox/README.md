@@ -40,6 +40,19 @@ La version buggée (`environment/app/pricing/cart.py`) teste `quantity > 10`, do
 Le verifier (`tests/test.sh`) écrit `/logs/verifier/reward.json` :
 `{"resolved": f2p*p2p, "f2p": 0|1, "p2p": 0|1}`. Il écrit ce fichier même si pytest plante.
 
+## Générer une tâche depuis une spec
+
+`tasks/<nom>/` est un **artefact généré** : ne l'éditez pas à la main. La source de vérité est `specs/<nom>/spec.toml` (dépôt + révision SHA, script de préparation optionnel, patch de tests cachés, patch de correction, limites, ressources).
+
+```bash
+scripts/make_task.py fix-bulk-discount   # écrase tasks/fix-bulk-discount/
+```
+
+- La révision est récupérée **sur l'hôte** (`git fetch --depth 1` du seul SHA), puis copiée dans l'image : les dépôts privés utilisent vos identifiants locaux, aucun secret ne finit dans une couche Docker, et l'agent ne voit aucun historique amont.
+- `source.setup` (optionnel) s'exécute dans `/app` au build, avant le commit de référence unique.
+- `[limits]` produit les timeouts de `task.toml` ; `max_turns` et `max_budget_usd` vont dans `limits.env` (non lu par Harbor, destiné à `run_claude.sh`).
+- Après génération, rejouez `run_oracle.sh` (resolved = 1) puis `run_nop.sh` (resolved = 0, p2p = 1).
+
 ## Mode d'emploi
 
 Prérequis : Docker avec le plugin compose, `uv`, puis `uv tool install harbor`.
