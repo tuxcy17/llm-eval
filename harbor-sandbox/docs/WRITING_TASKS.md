@@ -52,7 +52,8 @@ patch = "fix.patch"
 
 [environment]
 base_image = "python:3.12-slim"
-pip = ["pytest"]                     # optionnel
+packages = []                        # optionnel : paquets système
+pip = ["pytest"]                     # optionnel : paquets Python
 cpus = 1
 memory_mb = 1024
 storage_mb = 2048
@@ -79,9 +80,29 @@ tags = ["python"]
 | `tests.command` | oui | Commande préfixant la liste de fichiers de `f2p`, puis de `p2p`. |
 | `tests.f2p` | oui | Fichiers de tests qui échouent avant le correctif et réussissent après. |
 | `tests.p2p` | oui | Fichiers de tests qui réussissent avant et après. |
-| `environment.base_image` | oui | `git` est installé via `apt` s'il manque. |
+| `environment.base_image` | oui | N'importe quelle image Linux : voir « Choisir l'image de base ». |
+| `environment.packages` | non | Paquets système à installer (outils de build, JDK, etc.). |
+| `environment.pip` | non | Paquets Python ; l'image doit fournir `pip`. |
 | `limits.*_timeout_sec` | oui | Enforcés par Harbor. `build_timeout_sec` couvre aussi `setup.sh` : prévoyez large pour un vrai projet. |
 | `limits.max_turns`, `max_budget_usd` | non | Ne sont **pas** lus par Harbor : écrits dans `limits.env`, transmis par `run_claude.sh` à l'agent (`--ak`). |
+
+## Choisir l'image de base
+
+`base_image` est le `FROM` du Dockerfile généré. Le générateur ne suppose ni Python ni Debian :
+
+- **Le gestionnaire de paquets est détecté** (`apt-get`, `apk`, `dnf`, `microdnf` ou `yum`). Les images Debian/Ubuntu, Alpine, Fedora et RHEL sont donc utilisables.
+- **`git` et `bash` sont ajoutés automatiquement** s'ils manquent : le premier sert au commit de référence, le second à `test.sh`, `solve.sh` et `setup.sh`.
+- **`packages`** liste les paquets système propres à votre projet. Les noms dépendent de la distribution (`python3` partout, mais `build-essential` sur Debian contre `build-base` sur Alpine).
+- **`pip`** n'est utilisé que s'il est renseigné, et échoue clairement si l'image n'a pas `pip`. Pour d'autres écosystèmes (npm, mvn, cargo…), installez dans `setup.sh`.
+
+```toml
+# Exemple : projet Node sur Alpine
+[environment]
+base_image = "node:20-alpine"
+packages = ["make"]
+```
+
+Les images testées (build, git, bash, commit de référence) : `python:3.12-slim`, `alpine:3.20`, `ubuntu:24.04`, `fedora:40`. L'installation de l'agent `claude-code` dans le conteneur par Harbor (nodejs, npm, curl) a, elle, été éprouvée uniquement sur l'image Debian de `python:3.12-slim` ; sur Alpine ou RHEL, vérifiez-la avec un run réel.
 
 ## Écrire l'instruction
 
@@ -161,4 +182,5 @@ Résultats : `python3 scripts/extract_metrics.py` (colonnes `task`, `task_checks
 - **`git apply` dans un dépôt** ignore les chemins hors du dossier courant. Pour vérifier un patch à la main, exécutez `git apply --check` depuis la racine de l'application, pas depuis un autre sous-dossier.
 - **Le SHA doit être joignable** : un `fetch` d'un commit non référencé par une branche peut échouer selon le serveur. Choisissez un commit présent sur une branche.
 - **`fix.patch` n'est validé que par l'oracle** : lancez-le systématiquement après une génération.
+- **Changer d'image change le `task_checksum`** : les résultats d'avant et d'après ne sont pas comparables sans le noter.
 - **Dépôt privé** : le clone utilise vos identifiants locaux, et aucun secret n'est copié dans l'image.
