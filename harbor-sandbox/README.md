@@ -48,7 +48,7 @@ Le code vit dans [tuxcy17/fake-app](https://github.com/tuxcy17/fake-app), un dé
 
 Pour chaque tâche : les tests existants à la base sont les PASS_TO_PASS (visibles par l'agent, ne doivent pas casser) ; le fichier de tests ajouté par le commit de correction est le FAIL_TO_PASS (caché, appliqué à la vérification). Le verifier (`tests/test.sh`) écrit `/logs/verifier/reward.json` : `{"resolved": f2p*p2p, "f2p": 0|1, "p2p": 0|1}`, même si pytest plante.
 
-> L'historique du dépôt est public : l'agent ne le voit pas (l'image ne contient qu'un commit, sans remote), mais les commits de correction sont consultables sur GitHub.
+> Le dépôt est **privé** : les specs utilisent l'URL SSH (`git@github.com:…`), donc `make_task.py` s'appuie sur votre clé SSH locale (un accès HTTPS sans identifiants échoue avec « unable to get password »). L'agent ne voit jamais l'historique : l'image ne contient qu'un commit, sans remote.
 
 ## Générer une tâche depuis une spec
 
@@ -65,6 +65,20 @@ scripts/make_task.py fix-bulk-discount   # écrase tasks/fix-bulk-discount/
 - `[limits]` produit les timeouts de `task.toml` ; `max_turns` et `max_budget_usd` vont dans `limits.env` (non lu par Harbor, destiné à `run_claude.sh`).
 - Guide complet pour écrire une tâche : [docs/WRITING_TASKS.md](docs/WRITING_TASKS.md).
 - Après génération, rejouez `run_oracle.sh` (resolved = 1) puis `run_nop.sh` (resolved = 0, p2p = 1).
+
+## Raccourcis `make`
+
+Un `Makefile` à la racine du dépôt pilote les actions principales (`make` seul affiche l'aide) :
+
+| Commande | Action |
+|---|---|
+| `make prereqs` | vérifie Docker, Harbor et les identifiants |
+| `make tasks` / `make task TASK=<nom>` | génère toutes les tâches / une tâche depuis `specs/` |
+| `make check [TASK=<nom>]` | valide les tâches : oracle puis nop, sans consommer de quota |
+| `make claude [TASKS="a b"] [CLAUDE_MODELS="m"] [ARGS="--n-attempts 1"]` | lance Claude Code (quota, `CLAUDE_CODE_OAUTH_TOKEN` requis) |
+| `make metrics` / `make plot` / `make view` | CSV et résumé / graphiques / navigateur de trajectoires |
+
+`oracle`, `nop` et `claude` génèrent automatiquement les tâches dont la codebase n'a pas encore été récupérée (clone neuf).
 
 ## Mode d'emploi
 

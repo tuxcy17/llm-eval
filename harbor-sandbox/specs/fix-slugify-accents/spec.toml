@@ -6,7 +6,7 @@ name = "fix-slugify-accents"
 instruction = "instruction.md"
 
 [source]
-repo = "https://github.com/tuxcy17/fake-app.git"
+repo = "git@github.com:tuxcy17/fake-app.git"
 revision = "2660c6400513181cb1b8a1bdcbc99e6afc95d1a4"
 
 [tests]

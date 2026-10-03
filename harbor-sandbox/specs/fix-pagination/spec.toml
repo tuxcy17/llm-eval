@@ -6,7 +6,7 @@ name = "fix-pagination"
 instruction = "instruction.md"
 
 [source]
-repo = "https://github.com/tuxcy17/fake-app.git"
+repo = "git@github.com:tuxcy17/fake-app.git"
 revision = "c7a3aaeed4ed51dd7bb5138eb7ca5ade411eb9f4"
 
 [tests]

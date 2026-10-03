@@ -36,7 +36,7 @@ name = "fix-bulk-discount"          # = nom du dossier specs/<nom>/
 instruction = "instruction.md"
 
 [source]
-repo = "https://github.com/tuxcy17/fake-app.git"   # URL git ou chemin local
+repo = "git@github.com:tuxcy17/fake-app.git"   # URL git ou chemin local
 revision = "5137975c5bdd8f45c69501fe6fe24cb034e80164"
 # subdir = "services/pricing"                       # optionnel (monorepo)
 setup = "setup.sh"                             # optionnel
@@ -225,4 +225,4 @@ Résultats : `python3 scripts/extract_metrics.py` (colonnes `task`, `task_checks
 - **Le SHA doit être joignable** : un `fetch` d'un commit non référencé par une branche peut échouer selon le serveur. Choisissez un commit présent sur une branche.
 - **`fix.patch` n'est validé que par l'oracle** : lancez-le systématiquement après une génération.
 - **Changer d'image change le `task_checksum`** : les résultats d'avant et d'après ne sont pas comparables sans le noter.
-- **Dépôt privé** : le clone utilise vos identifiants locaux, et aucun secret n'est copié dans l'image.
+- **Dépôt privé** : utilisez une URL SSH (`git@github.com:org/repo.git`) ; le fetch se fait sur l'hôte avec votre clé locale, et aucun secret n'est copié dans l'image. Une URL HTTPS sans identifiants échoue (`unable to get password from user`), car `make_task.py` n'est pas interactif. Vérifié avec `fake-app` privé.

@@ -6,7 +6,7 @@ name = "add-coupon-code"
 instruction = "instruction.md"
 
 [source]
-repo = "https://github.com/tuxcy17/fake-app.git"
+repo = "git@github.com:tuxcy17/fake-app.git"
 revision = "8dfba35f31b17fd0a28e394b2bdde8685bb33acf"
 
 [tests]
