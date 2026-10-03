@@ -74,11 +74,14 @@ scripts/run_nop.sh           # attendu : resolved = 0, p2p = 1
 
 # 5. Claude Code (consomme le quota de l'abonnement)
 scripts/run_claude.sh <modèle>          # ex. claude-sonnet-5-5
+TASKS="fix-bulk-discount" scripts/run_claude.sh <modèle>   # sous-ensemble de tâches
 
 # 6. Métriques
 python3 scripts/extract_metrics.py      # → docs/metrics.csv
 harbor view jobs                        # navigateur de trajectoires
 ```
+
+`run_claude.sh` lance **un `harbor run` par tâche** (job `claude-code-<horodatage>-<tâche>`) et passe `--ak max_turns=…` / `--ak max_budget_usd=…` d'après `tasks/<nom>/limits.env`, quand ces limites sont définies dans la spec. Sans limite, seuls les timeouts de `task.toml` s'appliquent. `TASKS` restreint les tâches lancées (par défaut : toutes).
 
 Les résultats bruts vont dans `jobs/<job>/<task>__<id>/`. Ce dossier est ignoré par git, car il contient les transcriptions complètes de l'agent.
 
