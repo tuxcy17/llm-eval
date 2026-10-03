@@ -8,11 +8,10 @@ instruction = "instruction.md"
 [source]
 # Git URL or local path. The generator fetches `revision` on the host
 # (so private repos use the host credentials) and bakes the tree into the image.
-repo = "../../.."
+repo = "https://github.com/tuxcy17/fake-app.git"
 # Full 40-hex SHA only: branches and tags are not reproducible.
-revision = "753a28a68d3caba953d1074f33b13198f9ff9453"
+revision = "5137975c5bdd8f45c69501fe6fe24cb034e80164"
 # Optional: use this subdirectory of the repo as /app.
-subdir = "harbor-sandbox/tasks/fix-bulk-discount/environment/app"
 # Optional: script run in /app at image build time, before the baseline commit.
 # setup = "setup.sh"
 
@@ -21,7 +20,7 @@ subdir = "harbor-sandbox/tasks/fix-bulk-discount/environment/app"
 patch = "tests.patch"
 command = "python -m pytest -rA -p no:cacheprovider"
 f2p = ["tests/test_bulk_discount.py"]
-p2p = ["tests/test_cart.py"]
+p2p = ["tests/test_cart.py", "tests/test_paginate.py", "tests/test_slug.py"]
 
 [solution]
 # Reference fix, used by the oracle agent.

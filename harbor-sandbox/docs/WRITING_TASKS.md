@@ -1,6 +1,6 @@
 # Écrire une tâche d'évaluation
 
-Une tâche se **déclare** dans `specs/<nom>/`, puis `scripts/make_task.py` génère `tasks/<nom>/`, le dossier que Harbor exécute. On n'édite jamais `tasks/<nom>/` à la main : il est écrasé à chaque génération.
+Une tâche se **déclare** dans `specs/<nom>/`, puis `scripts/make_task.py` génère `tasks/<nom>/`, le dossier que Harbor exécute. On n'édite jamais `tasks/<nom>/` à la main : il est écrasé à chaque génération. `tasks/<nom>/environment/app/` (la codebase) n'est pas versionné : il est récupéré du dépôt source à chaque génération, donc lancez `scripts/make_task.py --all` après un clone.
 
 ```
 specs/<nom>/                    ← ce que vous écrivez
@@ -36,9 +36,9 @@ name = "fix-bulk-discount"          # = nom du dossier specs/<nom>/
 instruction = "instruction.md"
 
 [source]
-repo = "https://github.com/org/pricing.git"   # URL git ou chemin local
-revision = "753a28a68d3caba953d1074f33b13198f9ff9453"
-subdir = "services/pricing"                    # optionnel
+repo = "https://github.com/tuxcy17/fake-app.git"   # URL git ou chemin local
+revision = "5137975c5bdd8f45c69501fe6fe24cb034e80164"
+# subdir = "services/pricing"                       # optionnel (monorepo)
 setup = "setup.sh"                             # optionnel
 
 [tests]
@@ -137,9 +137,22 @@ Les images testées avec Dockerfile généré : `ubuntu:24.04` (et tâche pilote
 
 `instruction.md` est le seul texte vu par l'agent. Rédigez-la comme une issue d'utilisateur : le symptôme et le comportement attendu, sans indiquer le fichier fautif ni la solution. Précisez où se trouve le code (`/app`).
 
+## Ajouter une tâche dans le dépôt source (`fake-app`)
+
+Le dépôt de référence est [tuxcy17/fake-app](https://github.com/tuxcy17/fake-app). Une tâche = **un commit de correction** dont le **parent** est l'état donné à l'agent.
+
+1. Dans `fake-app`, ajoutez au bout de la chaîne un commit qui corrige le bug ou ajoute la fonctionnalité **et** ajoute le fichier de tests correspondant (`tests/test_<sujet>.py`). Poussez-le.
+   - Pour un bug à reproduire, introduisez-le d'abord dans un commit précédent (le parent), puis corrigez-le dans le commit suivant.
+2. Notez `<base>` (le parent) et `<fix>` (le commit), en SHA complets.
+3. Créez `specs/<nom>/` avec `spec.toml` (`revision = "<base>"`), `instruction.md`, et dérivez les patchs depuis le dépôt (voir ci-dessous).
+4. `f2p` = le fichier de tests ajouté par `<fix>` ; `p2p` = **tous les fichiers de tests présents à `<base>`**, listés explicitement. N'utilisez pas le dossier `tests` entier : les tests cachés y sont appliqués avant l'exécution des `p2p`, et ferait échouer ceux-ci avant correction. Pour lister : `git ls-tree --name-only <base> tests/`.
+5. `scripts/make_task.py <nom>`, puis oracle et nop.
+
+Les révisions déjà utilisées forment une chaîne : la base d'une tâche est le commit de correction de la précédente. Cela contient donc les tests des corrections antérieures, ce qui rend les PASS_TO_PASS plus riches.
+
 ## Produire `tests.patch` et `fix.patch`
 
-À partir d'un commit de base et d'un commit de correction (`<base>`, `<fix>`), depuis la racine de l'application (le `subdir` s'il y en a un) :
+À partir de `<base>` et `<fix>`, depuis la racine de l'application dans une copie locale du dépôt source (le `subdir` s'il y en a un) :
 
 ```bash
 cd <repo>/<subdir>

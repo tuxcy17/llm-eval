@@ -9,3 +9,6 @@ __pycache__/
 
 # Secrets
 .env
+
+# Task codebases are fetched from their source repo by scripts/make_task.py
+tasks/*/environment/app/

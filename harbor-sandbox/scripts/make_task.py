@@ -2,6 +2,7 @@
 """Generate a Harbor task from specs/<name>/spec.toml.
 
 Usage: scripts/make_task.py <name> [<name> ...]
+       scripts/make_task.py --all
 
 The generated tasks/<name>/ is fully overwritten (it is a build artifact).
 Stdlib only, Python >= 3.11.
@@ -313,7 +314,10 @@ def make_task(name: str) -> None:
 def main() -> None:
     if len(sys.argv) < 2:
         sys.exit(__doc__)
-    for name in sys.argv[1:]:
+    names = sys.argv[1:]
+    if names == ["--all"]:
+        names = sorted(p.parent.name for p in (ROOT / "specs").glob("*/spec.toml"))
+    for name in names:
         make_task(name)
 
 
