@@ -31,6 +31,7 @@ storage_mb = 2048
 build_timeout_sec = 300
 agent_timeout_sec = 600
 verifier_timeout_sec = 120
+max_turns = 10
 
 [metadata]
 difficulty = "medium"

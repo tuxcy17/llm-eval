@@ -44,7 +44,7 @@ build_timeout_sec = 300
 agent_timeout_sec = 600
 verifier_timeout_sec = 120
 # Not read by Harbor: written to limits.env for scripts/run_claude.sh.
-max_turns = 30
+max_turns = 10
 # max_budget_usd = "2.00"
 
 [metadata]
