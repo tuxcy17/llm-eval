@@ -51,6 +51,7 @@ scripts/make_task.py fix-bulk-discount   # écrase tasks/fix-bulk-discount/
 - La révision est récupérée **sur l'hôte** (`git fetch --depth 1` du seul SHA), puis copiée dans l'image : les dépôts privés utilisent vos identifiants locaux, aucun secret ne finit dans une couche Docker, et l'agent ne voit aucun historique amont.
 - `source.setup` (optionnel) s'exécute dans `/app` au build, avant le commit de référence unique.
 - `[limits]` produit les timeouts de `task.toml` ; `max_turns` et `max_budget_usd` vont dans `limits.env` (non lu par Harbor, destiné à `run_claude.sh`).
+- Guide complet pour écrire une tâche : [docs/WRITING_TASKS.md](docs/WRITING_TASKS.md).
 - Après génération, rejouez `run_oracle.sh` (resolved = 1) puis `run_nop.sh` (resolved = 0, p2p = 1).
 
 ## Mode d'emploi
