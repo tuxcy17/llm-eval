@@ -13,6 +13,10 @@ run_claude.sh creates one job per model and task
 (claude-code-<model>-<ts>-<task>); all matching jobs are aggregated, and the
 summary is grouped by (task, agent, model).
 
+When the agent reports no cost (Vibe on an OpenRouter preset), the cost is estimated
+from the token counts and docs/pricing.csv (see scripts/update_pricing.py);
+cost_source says which: "reported" or "estimated".
+
 Every field is optional: missing files or keys yield empty cells.
 """
 
@@ -46,6 +50,7 @@ COLUMNS = [
     "total_completion_tokens",
     "total_cached_tokens",
     "total_cost_usd",
+    "cost_source",
     "duration_sec",
     "env_setup_sec",
     "agent_setup_sec",
@@ -69,6 +74,40 @@ AGENT_RESULT_FALLBACKS = {
     "total_cached_tokens": "n_cache_tokens",
     "total_cost_usd": "cost_usd",
 }
+
+
+def load_pricing(path: Path) -> dict[str, dict]:
+    """docs/pricing.csv keyed by preset id (empty when absent)."""
+    try:
+        with path.open(newline="") as handle:
+            return {r["preset"]: r for r in csv.DictReader(handle)}
+    except OSError:
+        return {}
+
+
+def vibe_cached_tokens(trial_dir: Path) -> int | None:
+    """Cached prompt tokens from Vibe's session meta.json (not in the trajectory)."""
+    for meta in sorted((trial_dir / "agent" / "vibe-home" / "logs" / "session").glob("*/meta.json")):
+        cached = get(load_json(meta), "stats", "session_cached_tokens")
+        if cached is not None:
+            return cached
+    return None
+
+
+def estimate_cost(row: dict, pricing: dict[str, dict]) -> float | None:
+    """Dollar cost from tokens and per-million prices; prompt tokens include cached ones."""
+    price = pricing.get(row["model"] or "")
+    prompt, completion = row["total_prompt_tokens"], row["total_completion_tokens"]
+    if not price or prompt is None or completion is None:
+        return None
+    try:
+        rate_in, rate_out = float(price["input_per_m"]), float(price["output_per_m"])
+        rate_cache = float(price["cache_read_per_m"] or rate_in)
+    except (KeyError, ValueError):
+        return None
+    cached = min(row["total_cached_tokens"] or 0, prompt)
+    cost = (prompt - cached) * rate_in + cached * rate_cache + completion * rate_out
+    return round(cost / 1_000_000, 6)
 
 
 def load_json(path: Path) -> Any:
@@ -119,7 +158,7 @@ def is_trial_result(data: Any) -> bool:
     return isinstance(data, dict) and "trial_name" in data
 
 
-def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
+def extract_trial(job_name: str, trial_dir: Path, result: dict, pricing: dict) -> dict:
     row: dict[str, Any] = {key: None for key in COLUMNS}
     row["job"] = job_name
     row["trial"] = result.get("trial_name", trial_dir.name)
@@ -169,6 +208,15 @@ def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
     if row["model"] is None:
         row["model"] = get(trajectory, "agent", "model_name")
 
+    if row["total_cached_tokens"] is None:
+        row["total_cached_tokens"] = vibe_cached_tokens(trial_dir)
+    if row["total_cost_usd"] is not None:
+        row["cost_source"] = "reported"
+    else:
+        row["total_cost_usd"] = estimate_cost(row, pricing)
+        if row["total_cost_usd"] is not None:
+            row["cost_source"] = "estimated"
+
     row["duration_sec"] = seconds_between(result)
     row["env_setup_sec"] = seconds_between(result.get("environment_setup"))
     row["agent_setup_sec"] = seconds_between(result.get("agent_setup"))
@@ -183,7 +231,7 @@ def extract_trial(job_name: str, trial_dir: Path, result: dict) -> dict:
     return row
 
 
-def collect_rows(jobs_dir: Path, job_pattern: str) -> list[dict]:
+def collect_rows(jobs_dir: Path, job_pattern: str, pricing: dict) -> list[dict]:
     rows = []
     for job_dir in sorted(p for p in jobs_dir.iterdir() if p.is_dir()):
         if not fnmatch.fnmatch(job_dir.name, job_pattern):
@@ -191,7 +239,7 @@ def collect_rows(jobs_dir: Path, job_pattern: str) -> list[dict]:
         for trial_dir in sorted(p for p in job_dir.iterdir() if p.is_dir()):
             result = load_json(trial_dir / "result.json")
             if is_trial_result(result):
-                rows.append(extract_trial(job_dir.name, trial_dir, result))
+                rows.append(extract_trial(job_dir.name, trial_dir, result, pricing))
     return rows
 
 
@@ -211,7 +259,7 @@ def print_summary(rows: list[dict]) -> None:
 
     header = (
         f"{'task':<22}{'agent':<12}{'model':<22}{'trials':>7}{'infra':>7}{'resolved':>10}{'hit_max':>9}"
-        f"{'prompt_tok':>12}{'compl_tok':>11}{'steps':>7}{'dur_s':>8}"
+        f"{'prompt_tok':>12}{'compl_tok':>11}{'steps':>7}{'dur_s':>8}{'cost_$':>9}"
     )
     print(header)
     print("-" * len(header))
@@ -231,8 +279,9 @@ def print_summary(rows: list[dict]) -> None:
             f"{fmt(mean([r['total_completion_tokens'] for r in scored]), 0):>11}"
             f"{fmt(mean([r['n_steps'] for r in scored])):>7}"
             f"{fmt(mean([r['duration_sec'] for r in scored])):>8}"
+            f"{fmt(mean([r['total_cost_usd'] for r in scored]), 4):>9}"
         )
-    print("(averages and resolution rate exclude infra_error trials; hit_max = trials stopped by the turn limit)")
+    print("(averages and resolution rate exclude infra_error trials; hit_max = trials stopped by the turn limit; cost_$ = mean per trial, estimated from docs/pricing.csv when not reported)")
 
 
 def main() -> int:
@@ -242,6 +291,9 @@ def main() -> int:
     parser.add_argument(
         "--output", type=Path, default=repo_root / "docs" / "metrics.csv"
     )
+    parser.add_argument(
+        "--pricing", type=Path, default=repo_root / "docs" / "pricing.csv"
+    )
     parser.add_argument("--job", default="*", help="glob on job names (default: all)")
     args = parser.parse_args()
 
@@ -249,7 +301,7 @@ def main() -> int:
         print(f"Jobs directory not found: {args.jobs_dir}", file=sys.stderr)
         return 1
 
-    rows = collect_rows(args.jobs_dir, args.job)
+    rows = collect_rows(args.jobs_dir, args.job, load_pricing(args.pricing))
     if not rows:
         print(f"No trial found under {args.jobs_dir}", file=sys.stderr)
         return 1

@@ -7,12 +7,14 @@ SB := harbor-sandbox
 #   TASK=<name>             one task (oracle, nop, check, task)
 #   TASKS="<a> <b>"         several tasks by name (claude)
 #   CLAUDE_MODELS="<m1> .." models to evaluate (default: MODELS in run_claude.sh)
+#   MISTRAL_MODELS / DEEPSEEK_MODELS / GLM_MODELS="openrouter/<vendor>/<model> .." models for
+#   run_mistral.sh / run_deepseek.sh / run_glm.sh (via OpenRouter)
 #   N_CONCURRENT=<n>        parallel trials (claude, default 3)
 #   ARGS="<harbor options>" extra options passed to harbor run, e.g. ARGS='--n-attempts 1'
-export TASK TASKS CLAUDE_MODELS N_CONCURRENT
+export TASK TASKS CLAUDE_MODELS MISTRAL_MODELS N_CONCURRENT
 
 .DEFAULT_GOAL := help
-.PHONY: help prereqs tasks task oracle nop check claude metrics plot view ensure-tasks
+.PHONY: help prereqs tasks task oracle nop check claude mistral deepseek glm pricing metrics plot view ensure-tasks
 
 help: ## Show this help
 	@echo "Usage: make <target> [TASK=<name>] [TASKS=\"<a> <b>\"] [CLAUDE_MODELS=\"<m>\"] [N_CONCURRENT=<n>] [ARGS=\"...\"]"
@@ -49,6 +51,18 @@ check: oracle nop ## Validate the tasks: oracle then nop (no quota used)
 
 claude: ensure-tasks ## Run Claude Code (uses quota; needs CLAUDE_CODE_OAUTH_TOKEN)
 	@$(SB)/scripts/run_claude.sh $(ARGS)
+
+mistral: ensure-tasks ## Run Mistral models via OpenRouter (needs OPENROUTER_API_KEY)
+	@$(SB)/scripts/run_mistral.sh $(ARGS)
+
+deepseek: ensure-tasks ## Run DeepSeek models via OpenRouter (needs OPENROUTER_API_KEY)
+	@$(SB)/scripts/run_deepseek.sh $(ARGS)
+
+glm: ensure-tasks ## Run GLM models via OpenRouter (needs OPENROUTER_API_KEY)
+	@$(SB)/scripts/run_glm.sh $(ARGS)
+
+pricing: ## Refresh docs/pricing.csv from docs/presets.toml (OpenRouter public API)
+	@python3 $(SB)/scripts/update_pricing.py
 
 metrics: ## Extract jobs/ into docs/metrics.csv and print the summary
 	@python3 $(SB)/scripts/extract_metrics.py

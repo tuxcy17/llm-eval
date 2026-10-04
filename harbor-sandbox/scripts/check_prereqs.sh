@@ -43,6 +43,12 @@ for var in ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN; do
     fi
 done
 
+if [[ -n "${MISTRAL_API_KEY:-}" ]]; then
+    ok "OPENROUTER_API_KEY is set (value not shown)"
+else
+    warn "OPENROUTER_API_KEY is not set (only needed for run_mistral/deepseek/glm.sh)"
+fi
+
 if [[ -n "${ANTHROPIC_BASE_URL:-}" ]]; then
     warn "ANTHROPIC_BASE_URL is set: Harbor forwards it to the agent (run_claude.sh unsets it)"
 fi

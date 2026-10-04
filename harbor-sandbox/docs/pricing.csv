@@ -1,0 +1,4 @@
+preset,name,version,model,provider,tag,input_per_m,output_per_m,cache_read_per_m,fetched_at
+@preset/glm-eval,eval-glm-v5-3-mistral,4,z-ai/glm-5.3,Mistral,mistral/zdr,1.4,4.4,0.14,2026-10-04T07:40Z
+@preset/deepseek-eval,eval-deepseek-v4-1-flash-digitalocean,3,deepseek/deepseek-v4.1-flash,DigitalOcean,digitalocean,0.18,0.72,0.0036,2026-10-04T07:40Z
+@preset/mistral-eval,eval-v2-devstral-mistral,3,mistralai/devstral-2512,Mistral,mistral/eu,0.4,2.0,0.04,2026-10-04T07:40Z
