@@ -3,23 +3,27 @@
 #   scripts/update_pricing.py reads this file and fetches the prices.
 # Keep it in sync with the preset in the OpenRouter UI; when a preset changes,
 # bump `version` here (results of different versions are not comparable).
+# `label` is the short name shown in the report charts.
 # Optional `tag` picks one endpoint when a provider exposes several
 # (e.g. "mistral/nvfp4"); without it the cheapest endpoint of the provider is used.
 
 [presets."@preset/glm-eval"]
 name = "eval-glm-v5-3-mistral"
+label = "GLM 5.3"
 model = "z-ai/glm-5.3"
 provider = "Mistral"
 version = 4
 
 [presets."@preset/deepseek-eval"]
 name = "eval-deepseek-v4-1-flash-digitalocean"
+label = "DeepSeek V4.1 Flash"
 model = "deepseek/deepseek-v4.1-flash"
 provider = "DigitalOcean"
 version = 3
 
 [presets."@preset/mistral-eval"]
 name = "eval-v2-devstral-mistral"
+label = "Devstral 2"
 model = "mistralai/devstral-2512"
 provider = "Mistral"
 version = 3
