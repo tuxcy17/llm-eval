@@ -7,12 +7,14 @@ SB := harbor-sandbox
 #   TASK=<name>             one task (oracle, nop, check, task)
 #   TASKS="<a> <b>"         several tasks by name (claude)
 #   CLAUDE_MODELS="<m1> .." models to evaluate (default: MODELS in run_claude.sh)
+#   MISTRAL_MODELS / DEEPSEEK_MODELS / GLM_MODELS="openrouter/<vendor>/<model> .." models for
+#   run_mistral.sh / run_deepseek.sh / run_glm.sh (via OpenRouter)
 #   N_CONCURRENT=<n>        parallel trials (claude, default 3)
 #   ARGS="<harbor options>" extra options passed to harbor run, e.g. ARGS='--n-attempts 1'
-export TASK TASKS CLAUDE_MODELS N_CONCURRENT
+export TASK TASKS CLAUDE_MODELS MISTRAL_MODELS N_CONCURRENT
 
 .DEFAULT_GOAL := help
-.PHONY: help prereqs tasks task oracle nop check claude metrics plot view ensure-tasks
+.PHONY: help prereqs tasks task oracle nop check claude mistral deepseek glm pricing metrics plot report eval view ensure-tasks
 
 help: ## Show this help
 	@echo "Usage: make <target> [TASK=<name>] [TASKS=\"<a> <b>\"] [CLAUDE_MODELS=\"<m>\"] [N_CONCURRENT=<n>] [ARGS=\"...\"]"
@@ -50,11 +52,37 @@ check: oracle nop ## Validate the tasks: oracle then nop (no quota used)
 claude: ensure-tasks ## Run Claude Code (uses quota; needs CLAUDE_CODE_OAUTH_TOKEN)
 	@$(SB)/scripts/run_claude.sh $(ARGS)
 
-metrics: ## Extract jobs/ into docs/metrics.csv and print the summary
+mistral: ensure-tasks ## Run Mistral models via OpenRouter (needs OPENROUTER_API_KEY)
+	@$(SB)/scripts/run_mistral.sh $(ARGS)
+
+deepseek: ensure-tasks ## Run DeepSeek models via OpenRouter (needs OPENROUTER_API_KEY)
+	@$(SB)/scripts/run_deepseek.sh $(ARGS)
+
+glm: ensure-tasks ## Run GLM models via OpenRouter (needs OPENROUTER_API_KEY)
+	@$(SB)/scripts/run_glm.sh $(ARGS)
+
+# Providers evaluated by `make eval`, one after the other.
+EVAL_TARGETS := claude mistral deepseek glm
+
+eval: ## Evaluate every model (claude, mistral, deepseek, glm) then build the report
+	@failed=""; for t in $(EVAL_TARGETS); do \
+		echo "=== make $$t ==="; \
+		$(MAKE) --no-print-directory $$t || failed="$$failed $$t"; \
+	done; \
+	$(MAKE) --no-print-directory report; \
+	if [ -n "$$failed" ]; then echo "eval: failed target(s):$$failed" >&2; exit 1; fi
+
+pricing: ## Refresh docs/pricing.csv from docs/presets.toml (OpenRouter public API)
+	@python3 $(SB)/scripts/update_pricing.py
+
+metrics: ## Refresh pricing, then extract jobs/ into docs/metrics.csv and print the summary
+	@python3 $(SB)/scripts/update_pricing.py || echo "pricing not refreshed: using the existing docs/pricing.csv" >&2
 	@python3 $(SB)/scripts/extract_metrics.py
 
 plot: ## Build docs/comparison.html from docs/metrics.csv
 	@python3 $(SB)/scripts/plot_metrics.py
+
+report: metrics plot ## Everything in one go: pricing, metrics.csv, then comparison.html
 
 view: ## Browse trajectories (http://127.0.0.1:8080)
 	@$(SB)/scripts/view.sh
