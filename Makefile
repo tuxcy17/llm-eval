@@ -64,7 +64,8 @@ glm: ensure-tasks ## Run GLM models via OpenRouter (needs OPENROUTER_API_KEY)
 pricing: ## Refresh docs/pricing.csv from docs/presets.toml (OpenRouter public API)
 	@python3 $(SB)/scripts/update_pricing.py
 
-metrics: ## Extract jobs/ into docs/metrics.csv and print the summary
+metrics: ## Refresh pricing, then extract jobs/ into docs/metrics.csv and print the summary
+	@python3 $(SB)/scripts/update_pricing.py || echo "pricing not refreshed: using the existing docs/pricing.csv" >&2
 	@python3 $(SB)/scripts/extract_metrics.py
 
 plot: ## Build docs/comparison.html from docs/metrics.csv

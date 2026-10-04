@@ -5,7 +5,7 @@ For each preset, look up the endpoint of the pinned provider in
 GET /api/v1/models/<model>/endpoints (no API key needed) and record its price in
 dollars per million tokens. extract_metrics.py uses the file to estimate the
 cost of trials whose agent reported none. Rerunning overwrites the file; the
-fetched_at column dates the prices (git keeps the history).
+fetched_at column dates the prices and is kept while they do not change.
 
 Usage: scripts/update_pricing.py [--presets FILE] [--output FILE]
 """
@@ -71,6 +71,10 @@ def main() -> int:
         return 1
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    previous = {}
+    if args.output.is_file():
+        with args.output.open(newline="") as handle:
+            previous = {r["preset"]: r for r in csv.DictReader(handle)}
     rows, failed = [], False
     for preset, conf in presets.items():
         model, provider, tag = conf["model"], conf["provider"], conf.get("tag")
@@ -105,6 +109,11 @@ def main() -> int:
                 "fetched_at": now,
             }
         )
+        old = previous.get(preset)
+        if old and all(
+            str(rows[-1][k]) == old[k] for k in COLUMNS if k != "fetched_at"
+        ):
+            rows[-1]["fetched_at"] = old["fetched_at"]  # prices unchanged: keep the date
         print(f"[OK]   {preset} -> {model} @ {endpoint['provider_name']}: "
               f"in {rows[-1]['input_per_m']} / out {rows[-1]['output_per_m']} / cache {rows[-1]['cache_read_per_m']} $/M")
 
