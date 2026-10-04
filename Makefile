@@ -14,7 +14,7 @@ SB := harbor-sandbox
 export TASK TASKS CLAUDE_MODELS MISTRAL_MODELS N_CONCURRENT
 
 .DEFAULT_GOAL := help
-.PHONY: help prereqs tasks task oracle nop check claude mistral deepseek glm pricing metrics plot view ensure-tasks
+.PHONY: help prereqs tasks task oracle nop check claude mistral deepseek glm pricing metrics plot report view ensure-tasks
 
 help: ## Show this help
 	@echo "Usage: make <target> [TASK=<name>] [TASKS=\"<a> <b>\"] [CLAUDE_MODELS=\"<m>\"] [N_CONCURRENT=<n>] [ARGS=\"...\"]"
@@ -70,6 +70,8 @@ metrics: ## Refresh pricing, then extract jobs/ into docs/metrics.csv and print 
 
 plot: ## Build docs/comparison.html from docs/metrics.csv
 	@python3 $(SB)/scripts/plot_metrics.py
+
+report: metrics plot ## Everything in one go: pricing, metrics.csv, then comparison.html
 
 view: ## Browse trajectories (http://127.0.0.1:8080)
 	@$(SB)/scripts/view.sh
