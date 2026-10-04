@@ -14,7 +14,7 @@ SB := harbor-sandbox
 export TASK TASKS CLAUDE_MODELS MISTRAL_MODELS N_CONCURRENT
 
 .DEFAULT_GOAL := help
-.PHONY: help prereqs tasks task oracle nop check claude mistral deepseek glm pricing metrics plot report view ensure-tasks
+.PHONY: help prereqs tasks task oracle nop check claude mistral deepseek glm pricing metrics plot report eval view ensure-tasks
 
 help: ## Show this help
 	@echo "Usage: make <target> [TASK=<name>] [TASKS=\"<a> <b>\"] [CLAUDE_MODELS=\"<m>\"] [N_CONCURRENT=<n>] [ARGS=\"...\"]"
@@ -60,6 +60,17 @@ deepseek: ensure-tasks ## Run DeepSeek models via OpenRouter (needs OPENROUTER_A
 
 glm: ensure-tasks ## Run GLM models via OpenRouter (needs OPENROUTER_API_KEY)
 	@$(SB)/scripts/run_glm.sh $(ARGS)
+
+# Providers evaluated by `make eval`, one after the other.
+EVAL_TARGETS := claude mistral deepseek glm
+
+eval: ## Evaluate every model (claude, mistral, deepseek, glm) then build the report
+	@failed=""; for t in $(EVAL_TARGETS); do \
+		echo "=== make $$t ==="; \
+		$(MAKE) --no-print-directory $$t || failed="$$failed $$t"; \
+	done; \
+	$(MAKE) --no-print-directory report; \
+	if [ -n "$$failed" ]; then echo "eval: failed target(s):$$failed" >&2; exit 1; fi
 
 pricing: ## Refresh docs/pricing.csv from docs/presets.toml (OpenRouter public API)
 	@python3 $(SB)/scripts/update_pricing.py
