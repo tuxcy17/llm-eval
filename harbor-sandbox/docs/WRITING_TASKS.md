@@ -86,7 +86,7 @@ tags = ["python"]
 | `environment.python` | non | Version de Python (`"3.12"`, `"3.13"`…) : uv télécharge l'interpréteur si besoin et crée un venv `/opt/venv`. |
 | `environment.python_packages` | non | Paquets Python, installés par `uv pip install` dans ce venv. |
 | `environment.uv_version` | non | Tag de l'image `ghcr.io/astral-sh/uv` (défaut : version épinglée dans `make_task.py`). |
-| `limits.*_timeout_sec` | oui | Enforcés par Harbor. `build_timeout_sec` couvre aussi `setup.sh` : prévoyez large pour un vrai projet. |
+| `limits.*_timeout_sec` | oui | Enforcés par Harbor. `build_timeout_sec` couvre aussi `setup.sh` et l'outillage agent (curl, nodejs, npm, procps) préinstallé dans l'image : 900 s recommandés, car le premier build de l'image est long (ensuite mis en cache) ; prévoyez large pour un vrai projet. |
 | `limits.max_turns`, `max_budget_usd` | non | Ne sont **pas** lus par Harbor : écrits dans `limits.env`, transmis par `run_claude.sh` à l'agent (`--ak`). |
 
 ## Choisir l'image de base
